@@ -1,11 +1,11 @@
 resource "aws_s3_bucket" "this" {
-  bucket = var.bucket_name
+  bucket = "${var.bucket_name}-${var.environment}"
 }
 
-output "bucket_name" {
-  value = aws_s3_bucket.this.bucket
-}
+resource "aws_s3_bucket_versioning" "versioning" {
+  bucket = aws_s3_bucket.this.id
 
-output "bucket_arn" {
-  value = aws_s3_bucket.this.arn
+  versioning_configuration {
+    status = "Enabled"
+  }
 }

@@ -1,6 +1,23 @@
-variable "username" {}
-variable "password" {}
+variable "environment" {
+  type = string
+}
+
+variable "subnet_ids" {
+  type = list(string)
+}
+
 variable "security_group_ids" {
   type = list(string)
 }
-variable "iam_role" {}
+
+variable "username" {
+  type = string
+}
+
+variable "password" {
+  type = string
+}
+
+variable "iam_role_arn" {
+  type = string
+}

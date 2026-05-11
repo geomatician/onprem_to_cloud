@@ -1,7 +1,7 @@
-output "redshift_sg" {
-  value = aws_security_group.redshift.id
+output "dms_sg" {
+  value = aws_security_group.dms_sg.id
 }
 
-output "dms_sg" {
-  value = aws_security_group.dms.id
+output "redshift_sg" {
+  value = aws_security_group.redshift_sg.id
 }
