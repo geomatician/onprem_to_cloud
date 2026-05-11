@@ -10,13 +10,17 @@ pipeline {
     }
 
     environment {
+        AWS_PROFILE = "terraform-${params.ENV}"
         AWS_DEFAULT_REGION = "us-east-1"
-
-        TF_VAR_postgres_password = credentials('postgres-password')
-        TF_VAR_redshift_password = credentials('redshift-password')
     }
 
     stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
 
         stage('Set AWS Profile') {
             steps {
@@ -26,25 +30,32 @@ pipeline {
             }
         }
 
-        stage('Checkout') {
+        stage('Test Tools') {
             steps {
-                checkout scm
+                sh '''
+                    git --version
+                    terraform version
+                    aws --version
+                    aws sts get-caller-identity --profile $AWS_PROFILE --no-cli-pager
+                '''
             }
         }
 
         stage('Test Local PostgreSQL') {
             steps {
-                sh 'chmod +x scripts/test_postgres.sh'
-                sh './scripts/test_postgres.sh'
+                sh '''
+                    chmod +x scripts/test_postgres.sh
+                    ./scripts/test_postgres.sh
+                '''
             }
         }
 
         stage('Terraform Init') {
             steps {
                 sh """
-                terraform init \
-                  -reconfigure \
-                  -backend-config=backend/backend-${params.ENV}.hcl
+                    terraform init \
+                    -reconfigure \
+                    -backend-config=backend/backend-${params.ENV}.hcl
                 """
             }
         }
@@ -63,62 +74,74 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                sh """
-                terraform plan \
-                  -var-file=${params.ENV}.tfvars
-                """
+                withCredentials([
+                    string(credentialsId: 'postgres-password', variable: 'PG_PASS'),
+                    string(credentialsId: 'redshift-password', variable: 'RS_PASS')
+                ]) {
+                    sh """
+                        export TF_VAR_postgres_password=$PG_PASS
+                        export TF_VAR_redshift_password=$RS_PASS
+
+                        terraform plan -var-file=${params.ENV}.tfvars
+                    """
+                }
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                sh """
-                terraform apply \
-                  -auto-approve \
-                  -var-file=${params.ENV}.tfvars
-                """
+                withCredentials([
+                    string(credentialsId: 'postgres-password', variable: 'PG_PASS'),
+                    string(credentialsId: 'redshift-password', variable: 'RS_PASS')
+                ]) {
+                    sh """
+                        export TF_VAR_postgres_password=$PG_PASS
+                        export TF_VAR_redshift_password=$RS_PASS
+
+                        terraform apply -auto-approve -var-file=${params.ENV}.tfvars
+                    """
+                }
             }
         }
 
         stage('Start DMS Migration') {
             steps {
-                sh 'chmod +x scripts/run_migration.sh'
-                sh './scripts/run_migration.sh'
+                sh '''
+                    chmod +x scripts/run_migration.sh
+                    ./scripts/run_migration.sh
+                '''
             }
         }
 
         stage('Wait For Migration') {
             steps {
-                echo 'Waiting for migration to complete...'
+                echo 'Waiting for DMS migration to complete...'
                 sh 'sleep 180'
             }
         }
 
         stage('Validate Redshift Data') {
             steps {
-                sh """
-                export REDSHIFT_HOST=\$(terraform output -raw redshift_endpoint)
+                sh '''
+                    export REDSHIFT_HOST=$(terraform output -raw redshift_endpoint)
 
-                PGPASSWORD=$TF_VAR_redshift_password psql \
-                  -h \$REDSHIFT_HOST \
-                  -U admin \
-                  -d analytics \
-                  -p 5439 \
-                  -f scripts/validate_redshift.sql
-                """
+                    PGPASSWORD=$RS_PASS psql \
+                        -h $REDSHIFT_HOST \
+                        -U admin \
+                        -d analytics \
+                        -p 5439 \
+                        -f scripts/validate_redshift.sql
+                '''
             }
         }
     }
 
     post {
-
         success {
-            echo 'Pipeline completed successfully.'
+            echo 'Pipeline succeeded.'
         }
-
         failure {
             echo 'Pipeline failed.'
         }
-
     }
 }
