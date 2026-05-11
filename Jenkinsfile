@@ -4,14 +4,12 @@ pipeline {
     parameters {
         choice(
             name: 'ENV',
-            choices: ['dev', 'prod', 'demo'],
+            choices: ['dev', 'prod'],
             description: 'Choose Terraform environment'
         )
     }
 
     environment {
-
-        AWS_PROFILE = "terraform-dev"
         AWS_DEFAULT_REGION = "us-east-1"
 
         TF_VAR_postgres_password = credentials('postgres-password')
@@ -19,6 +17,14 @@ pipeline {
     }
 
     stages {
+
+        stage('Set AWS Profile') {
+            steps {
+                script {
+                    env.AWS_PROFILE = "terraform-${params.ENV}"
+                }
+            }
+        }
 
         stage('Checkout') {
             steps {
@@ -37,6 +43,7 @@ pipeline {
             steps {
                 sh """
                 terraform init \
+                  -reconfigure \
                   -backend-config=backend/backend-${params.ENV}.hcl
                 """
             }
@@ -82,7 +89,7 @@ pipeline {
 
         stage('Wait For Migration') {
             steps {
-                echo 'Waiting for migration...'
+                echo 'Waiting for migration to complete...'
                 sh 'sleep 180'
             }
         }
@@ -90,10 +97,10 @@ pipeline {
         stage('Validate Redshift Data') {
             steps {
                 sh """
-                export REDSHIFT_HOST=$(terraform output -raw redshift_endpoint)
+                export REDSHIFT_HOST=\$(terraform output -raw redshift_endpoint)
 
                 PGPASSWORD=$TF_VAR_redshift_password psql \
-                  -h $REDSHIFT_HOST \
+                  -h \$REDSHIFT_HOST \
                   -U admin \
                   -d analytics \
                   -p 5439 \
@@ -101,5 +108,17 @@ pipeline {
                 """
             }
         }
+    }
+
+    post {
+
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+
+        failure {
+            echo 'Pipeline failed.'
+        }
+
     }
 }
