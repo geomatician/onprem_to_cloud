@@ -1,0 +1,2 @@
+SELECT COUNT(*) FROM customer;
+SELECT * FROM customer LIMIT 10;
