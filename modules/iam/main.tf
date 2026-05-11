@@ -1,31 +1,68 @@
-resource "aws_iam_role" "redshift" {
-  name = "redshift-s3-role"
+resource "aws_iam_role" "dms_role" {
+  name = "dms-s3-role-${var.environment}"
 
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Effect = "Allow",
       Principal = {
-        Service = "redshift.amazonaws.com"
-      }
+        Service = "dms.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
     }]
   })
 }
 
-resource "aws_iam_role_policy" "s3_access" {
-  role = aws_iam_role.redshift.id
+resource "aws_iam_role_policy" "dms_s3_policy" {
+  role = aws_iam_role.dms_role.id
 
   policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [{
-      Action = ["s3:*"]
-      Effect = "Allow"
-      Resource = "*"
+      Effect = "Allow",
+      Action = [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      Resource = [
+        var.s3_bucket_arn,
+        "${var.s3_bucket_arn}/*"
+      ]
     }]
   })
 }
 
-output "redshift_role_arn" {
-  value = aws_iam_role.redshift.arn
+resource "aws_iam_role" "redshift_role" {
+  name = "redshift-s3-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "redshift.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "redshift_s3_policy" {
+  role = aws_iam_role.redshift_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      Resource = [
+        var.s3_bucket_arn,
+        "${var.s3_bucket_arn}/*"
+      ]
+    }]
+  })
 }

@@ -1,1 +1,7 @@
-variable "vpc_cidr" {}
+variable "vpc_cidr" {
+  type = string
+}
+
+variable "environment" {
+  type = string
+}

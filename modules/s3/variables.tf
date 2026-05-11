@@ -1,1 +1,7 @@
-variable "bucket_name" {}
+variable "bucket_name" {
+  type = string
+}
+
+variable "environment" {
+  type = string
+}

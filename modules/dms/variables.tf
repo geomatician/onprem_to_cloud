@@ -1,17 +1,27 @@
-variable "postgres_endpoint" {}
-variable "postgres_username" {}
-variable "postgres_password" {}
-
-variable "redshift_endpoint" {}
-variable "redshift_username" {}
-variable "redshift_password" {}
-
-variable "s3_bucket_name" {}
+variable "environment" {
+  type = string
+}
 
 variable "subnet_ids" {
   type = list(string)
 }
 
-variable "security_group_ids" {
-  type = list(string)
+variable "postgres_endpoint" {
+  type = string
+}
+
+variable "postgres_username" {
+  type = string
+}
+
+variable "postgres_password" {
+  type = string
+}
+
+variable "s3_bucket_name" {
+  type = string
+}
+
+variable "dms_role_arn" {
+  type = string
 }
