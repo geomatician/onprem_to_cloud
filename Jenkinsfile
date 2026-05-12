@@ -146,19 +146,13 @@ pipeline {
             }
         }
 
-        stage('Load Data Into Redshift') {
+        stage('Run Glue ETL') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'redshift-password', variable: 'PGPASSWORD')
-                ]) {
-                    sh '''
-                        set -e
-
-                        chmod +x scripts/load_redshift.sh
-
-                        ./scripts/load_redshift.sh
-                    '''
-                }
+                sh '''
+                    aws glue start-job-run \
+                    --job-name s3-to-redshift-dev \
+                    --region us-east-1
+                '''
             }
         }
 

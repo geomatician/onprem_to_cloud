@@ -33,3 +33,12 @@ module "redshift" {
 
   iam_role_arn = module.iam.redshift_role_arn
 }
+
+module "glue" {
+  source = "./modules/glue"
+
+  environment       = var.environment
+  s3_bucket_name    = module.s3.bucket_name
+  s3_bucket_arn     = module.s3.bucket_arn
+  glue_max_capacity = 2
+}
