@@ -10,6 +10,6 @@ output "vpc_id" {
   value = module.vpc.vpc_id
 }
 
-output "dms_task_arn" {
-  value = module.dms.task_arn
-}
+# output "dms_task_arn" {
+#   value = module.dms.task_arn
+# }
