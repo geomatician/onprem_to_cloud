@@ -7,7 +7,7 @@ resource "aws_glue_job" "this" {
 
   command {
     name            = "glueetl"
-    script_location = "s3://${var.s3_bucket_name}/glue/s3_to_redshift.py"
+    script_location = "s3://${var.s3_bucket_name}/glue/load_to_redshift.py"
     python_version  = "3"
   }
 
