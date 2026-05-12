@@ -17,4 +17,11 @@ resource "aws_redshift_cluster" "this" {
   vpc_security_group_ids = var.security_group_ids
 
   skip_final_snapshot = true
+
+  lifecycle {
+    ignore_changes = [
+      encrypted,
+      availability_zone_relocation_enabled
+    ]
+  }
 }
