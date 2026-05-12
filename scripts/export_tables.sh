@@ -2,7 +2,9 @@
 
 set -e
 
-mkdir -p exports/data
+mkdir -p export
+
+echo "Starting PostgreSQL table exports..."
 
 TABLES="
 actor
@@ -30,9 +32,11 @@ do
     -h host.docker.internal \
     -U dms_user \
     -d pagila \
-    -c "\\copy public.$TABLE TO STDOUT WITH CSV HEADER" \
-    > exports/data/${TABLE}.csv
+    -c "\copy (SELECT * FROM public.$TABLE) TO STDOUT WITH CSV HEADER" \
+    > export/${TABLE}.csv
+
+  echo "$TABLE export complete."
 
 done
 
-echo "All table exports complete."
+echo "All table exports completed successfully."
