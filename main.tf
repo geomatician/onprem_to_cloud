@@ -1,6 +1,13 @@
 module "vpc" {
   source = "./modules/vpc"
+
+  vpc_id = data.aws_vpc.default.id
+
+  region = var.aws_region
+
+  private_route_table_ids = data.aws_route_tables.private.ids
 }
+
 module "security_groups" {
   source      = "./modules/security-groups"
   vpc_id      = module.vpc.vpc_id
