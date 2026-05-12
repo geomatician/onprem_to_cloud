@@ -36,7 +36,7 @@ pipeline {
                     git --version
                     terraform version
                     aws --version
-                    aws sts get-caller-identity --profile $AWS_PROFILE --no-cli-pager
+                    aws sts get-caller-identity --profile $AWS_PROFILE
                 '''
             }
         }
@@ -104,58 +104,6 @@ pipeline {
             }
         }
 
-        stage('Export Postgres Tables to S3') {
-            steps {
-                sh '''
-                set -e
-
-                BUCKET=$(terraform output -raw bucket_name)
-
-                echo "Using bucket: $BUCKET"
-
-                mkdir -p export
-
-                TABLES="actor address category city country customer film film_actor film_category inventory language payment rental staff store"
-
-                for TABLE in $TABLES
-                do
-                echo "Exporting $TABLE..."
-
-                psql \
-                    -h host.docker.internal \
-                    -U postgres \
-                    -d pagila \
-                    -c "\\copy public.$TABLE TO STDOUT WITH CSV HEADER" \
-                > export/${TABLE}.csv
-
-                aws s3 cp export/${TABLE}.csv s3://$BUCKET/raw/$TABLE.csv
-
-                done
-                '''
-            }
-        }
-
-        stage('Wait For Migration') {
-            steps {
-                echo 'Waiting for DMS migration to complete...'
-                sh 'sleep 180'
-            }
-        }
-
-        stage('Validate Redshift Data') {
-            steps {
-                sh '''
-                    export REDSHIFT_HOST=$(terraform output -raw redshift_endpoint)
-
-                    PGPASSWORD=$RS_PASS psql \
-                        -h $REDSHIFT_HOST \
-                        -U admin \
-                        -d analytics \
-                        -p 5439 \
-                        -f scripts/validate_redshift.sql
-                '''
-            }
-        }
     }
 
     post {
