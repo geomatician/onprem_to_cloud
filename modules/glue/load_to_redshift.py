@@ -1,11 +1,12 @@
 import sys
+import psycopg2
+
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
 from pyspark.context import SparkContext
-from awsglue.dynamicframe import DynamicFrame
 
 # -----------------------------------------------------
-# Read arguments passed from Jenkins
+# Arguments from Jenkins
 # -----------------------------------------------------
 args = getResolvedOptions(sys.argv, [
     "REDSHIFT_HOST",
@@ -17,49 +18,79 @@ REDSHIFT_HOST = args["REDSHIFT_HOST"]
 REDSHIFT_PASSWORD = args["REDSHIFT_PASSWORD"]
 S3_BUCKET = args["S3_BUCKET"]
 
-REDSHIFT_JDBC_URL = f"jdbc:redshift://{REDSHIFT_HOST}:5439/dev"
+REDSHIFT_DB = "analytics"
+REDSHIFT_USER = "admin"
 
-REDSHIFT_USER = "admin"  # or move to Jenkins if you want fully dynamic
+# -----------------------------------------------------
+# Create schema/tables in Redshift
+# -----------------------------------------------------
+conn = psycopg2.connect(
+    host=REDSHIFT_HOST,
+    port=5439,
+    dbname=REDSHIFT_DB,
+    user=REDSHIFT_USER,
+    password=REDSHIFT_PASSWORD
+)
+
+conn.autocommit = True
+cursor = conn.cursor()
+
+schema_sql = """
+
+CREATE SCHEMA IF NOT EXISTS pagila_staging;
+
+CREATE TABLE IF NOT EXISTS pagila_staging.actor (
+    actor_id INTEGER,
+    first_name VARCHAR(45),
+    last_name VARCHAR(45),
+    last_update TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pagila_staging.category (
+    category_id INTEGER,
+    name VARCHAR(25),
+    last_update TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pagila_staging.country (
+    country_id INTEGER,
+    country VARCHAR(50),
+    last_update TIMESTAMP
+);
+
+"""
+
+cursor.execute(schema_sql)
+
+print("Schema and tables created.")
+
+cursor.close()
+conn.close()
 
 # -----------------------------------------------------
 # Initialize Glue
 # -----------------------------------------------------
 sc = SparkContext()
 glueContext = GlueContext(sc)
-spark = glueContext.spark_session
 
 # -----------------------------------------------------
-# Tables to load from S3
-# (1 CSV per table)
+# Tables
 # -----------------------------------------------------
 tables = [
     "actor",
-    "address",
     "category",
-    "city",
-    "country",
-    "customer",
-    "film",
-    "film_actor",
-    "film_category",
-    "inventory",
-    "language",
-    "payment",
-    "rental",
-    "staff",
-    "store"
+    "country"
 ]
 
 # -----------------------------------------------------
-# Load each table from S3 → Redshift
+# Load CSVs into Redshift
 # -----------------------------------------------------
 for table in tables:
 
-    print(f"Loading table: {table}")
+    print(f"Loading {table}")
 
     s3_path = f"s3://{S3_BUCKET}/raw/{table}.csv"
 
-    # Read CSV from S3
     df = glueContext.create_dynamic_frame.from_options(
         connection_type="s3",
         format="csv",
@@ -67,24 +98,22 @@ for table in tables:
             "paths": [s3_path]
         },
         format_options={
-            "withHeader": True,
-            "separator": ","
+            "withHeader": True
         }
     )
 
-    # Write into Redshift staging schema
     glueContext.write_dynamic_frame.from_options(
         frame=df,
-        connection_type="jdbc",
+        connection_type="redshift",
         connection_options={
-            "url": REDSHIFT_JDBC_URL,
+            "url": f"jdbc:redshift://{REDSHIFT_HOST}:5439/{REDSHIFT_DB}",
             "dbtable": f"pagila_staging.{table}",
             "user": REDSHIFT_USER,
             "password": REDSHIFT_PASSWORD,
-            "driver": "com.amazon.redshift.jdbc.Driver"
+            "redshiftTmpDir": f"s3://{S3_BUCKET}/tmp/"
         }
     )
 
-    print(f"Completed: {table}")
+    print(f"Finished {table}")
 
-print("All tables loaded successfully into Redshift staging.")
+print("Glue load complete.")

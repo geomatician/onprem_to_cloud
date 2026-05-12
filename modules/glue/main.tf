@@ -15,9 +15,32 @@ resource "aws_glue_job" "this" {
     "--job-language"   = "python"
     "--enable-metrics" = ""
     "--TempDir"        = "s3://${var.s3_bucket_name}/tmp/"
+
+    # install psycopg2 at Glue runtime
+    "--additional-python-modules" = "psycopg2-binary"
   }
+
+  connections = [
+    aws_glue_connection.redshift.name
+  ]
 
   tags = {
     Environment = var.environment
+  }
+}
+
+resource "aws_glue_connection" "redshift" {
+  name = "redshift-connection-${var.environment}"
+
+  connection_properties = {
+    JDBC_CONNECTION_URL = "jdbc:redshift://${var.redshift_host}:5439/analytics"
+    USERNAME            = var.redshift_username
+    PASSWORD            = var.redshift_password
+  }
+
+  physical_connection_requirements {
+    availability_zone      = var.availability_zone
+    subnet_id              = var.subnet_id
+    security_group_id_list = [var.glue_security_group_id]
   }
 }

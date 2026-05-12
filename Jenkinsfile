@@ -158,7 +158,8 @@ pipeline {
             }
         }
 
-        stage('Init Redshift Schema') {
+
+        stage('Run Glue Load to Redshift') {
             steps {
                 withCredentials([
                     string(credentialsId: 'redshift-password', variable: 'RS_PASS')
@@ -166,55 +167,23 @@ pipeline {
                     sh '''
                         set -e
 
+                        BUCKET=$(terraform output -raw bucket_name)
+
                         RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
 
-                        # remove :5439 if present
                         REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
 
-                        echo "Using Redshift host: $REDSHIFT_HOST"
-
-                        ls -l $WORKSPACE/scripts/redshift_schema.sql
-
-                        PGPASSWORD=$RS_PASS psql \
-                            -h $REDSHIFT_HOST \
-                            -U admin \
-                            -d analytics \
-                            -p 5439 \
-                            -f $WORKSPACE/scripts/redshift_schema.sql
+                        aws glue start-job-run \
+                            --job-name s3-to-redshift-${ENV} \
+                            --arguments '{
+                                "--REDSHIFT_HOST":"'"$REDSHIFT_HOST"'",
+                                "--REDSHIFT_PASSWORD":"'"$RS_PASS"'",
+                                "--S3_BUCKET":"'"$BUCKET"'"
+                            }'
                     '''
                 }
             }
         }
-
-        // stage('Run Glue Load to Redshift') {
-        //     steps {
-        //         withCredentials([
-        //             string(credentialsId: 'redshift-password', variable: 'RS_PASS')
-        //         ]) {
-        //             sh '''
-        //                 set -e
-
-        //                 BUCKET=$(terraform output -raw bucket_name)
-
-        //                 RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
-
-        //                 # remove :5439 if present
-        //                 REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
-
-        //                 echo "Bucket: $BUCKET"
-        //                 echo "Redshift Host: $REDSHIFT_HOST"
-
-        //                 aws glue start-job-run \
-        //                     --job-name s3-to-redshift-${ENV} \
-        //                     --arguments '{
-        //                         "--REDSHIFT_HOST":"'"$REDSHIFT_HOST"'",
-        //                         "--REDSHIFT_PASSWORD":"'"$RS_PASS"'",
-        //                         "--S3_BUCKET":"'"$BUCKET"'"
-        //                     }'
-        //             '''
-        //         }
-        //     }
-        // }
 
         // stage('Wait for Glue Job') {
         //     steps {

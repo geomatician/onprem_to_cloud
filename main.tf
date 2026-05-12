@@ -37,9 +37,21 @@ module "redshift" {
 module "glue" {
   source = "./modules/glue"
 
-  environment       = var.environment
-  s3_bucket_name    = module.s3.bucket_name
-  s3_bucket_arn     = module.s3.bucket_arn
-  glue_max_capacity = 2
-  glue_role_arn     = module.iam.glue_role_arn
+  environment = var.environment
+
+  glue_role_arn  = module.iam.glue_role_arn
+  s3_bucket_name = module.s3.bucket_name
+
+  redshift_host     = split(":", module.redshift.endpoint)[0]
+  redshift_username = var.redshift_username
+  redshift_password = var.redshift_password
+
+  vpc_id = data.aws_vpc.default.id
+
+  subnet_id = data.aws_subnets.default.ids[0]
+
+  availability_zone = "us-east-1a"
+
+  redshift_security_group_id = module.security_groups.redshift_sg
+  glue_security_group_id     = module.security_groups.glue_sg
 }
