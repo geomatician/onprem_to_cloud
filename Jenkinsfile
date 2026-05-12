@@ -104,6 +104,20 @@ pipeline {
             }
         }
 
+        stage('Export PostgreSQL Schema') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'postgres-password', variable: 'PGPASSWORD')
+                ]) {
+                    sh '''
+                        chmod +x scripts/export_schema.sh
+
+                        ./scripts/export_schema.sh
+                    '''
+                }
+            }
+        }
+
     }
 
     post {
