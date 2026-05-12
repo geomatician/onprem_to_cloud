@@ -6,6 +6,10 @@ output "redshift_role_arn" {
   value = module.iam.redshift_role_arn
 }
 
+output "cluster_identifier" {
+  value = module.redshift.cluster_identifier
+}
+
 output "bucket_name" {
   value = module.s3.bucket_name
 }

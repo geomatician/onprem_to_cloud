@@ -95,8 +95,7 @@ pipeline {
                     export AWS_PROFILE=$AWS_PROFILE
                     export AWS_DEFAULT_REGION=us-east-1
 
-                    DB=$(terraform output -raw redshift_db)
-                    CLUSTER=$(terraform output -raw redshift_cluster_id)
+                    CLUSTER=$(terraform output -raw cluster_identifier)
                     BUCKET=$(terraform output -raw bucket_name)
 
                     echo "Downloading schema..."
@@ -117,7 +116,7 @@ pipeline {
 
                             STATEMENT_ID=$(aws redshift-data execute-statement \
                                 --cluster-identifier $CLUSTER \
-                                --database $DB \
+                                --database analytics \
                                 --db-user admin \
                                 --sql "$CLEAN" \
                                 --query "Id" --output text)
