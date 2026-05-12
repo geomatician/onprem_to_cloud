@@ -35,17 +35,17 @@ module "redshift" {
   iam_role_arn = module.iam.redshift_role_arn
 }
 
-module "dms" {
-  source = "./modules/dms"
+# module "dms" {
+#   source = "./modules/dms"
 
-  environment = var.environment
+#   environment = var.environment
 
-  subnet_ids = module.vpc.private_subnet_ids
+#   subnet_ids = module.vpc.public_subnet_ids
 
-  postgres_endpoint = var.postgres_endpoint
-  postgres_username = var.postgres_username
-  postgres_password = var.postgres_password
+#   postgres_endpoint = var.postgres_endpoint
+#   postgres_username = var.postgres_username
+#   postgres_password = var.postgres_password
 
-  s3_bucket_name  = module.s3.bucket_name
-  dms_s3_role_arn = module.iam.dms_s3_role_arn
-}
+#   s3_bucket_name  = module.s3.bucket_name
+#   dms_s3_role_arn = module.iam.dms_s3_role_arn
+# }

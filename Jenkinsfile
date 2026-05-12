@@ -104,11 +104,33 @@ pipeline {
             }
         }
 
-        stage('Start DMS Migration') {
+        stage('Export Postgres Tables to S3') {
             steps {
                 sh '''
-                    chmod +x scripts/run_migration.sh
-                    ./scripts/run_migration.sh
+                set -e
+
+                BUCKET=$(terraform output -raw bucket_name)
+
+                echo "Using bucket: $BUCKET"
+
+                mkdir -p export
+
+                TABLES="actor address category city country customer film film_actor film_category inventory language payment rental staff store"
+
+                for TABLE in $TABLES
+                do
+                echo "Exporting $TABLE..."
+
+                psql \
+                    -h host.docker.internal \
+                    -U postgres \
+                    -d pagila \
+                    -c "\\copy public.$TABLE TO STDOUT WITH CSV HEADER" \
+                > export/${TABLE}.csv
+
+                aws s3 cp export/${TABLE}.csv s3://$BUCKET/raw/$TABLE.csv
+
+                done
                 '''
             }
         }
