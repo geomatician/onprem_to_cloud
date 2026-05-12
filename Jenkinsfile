@@ -166,13 +166,9 @@ pipeline {
 
                         echo "Using host: $REDSHIFT_HOST"
 
-                        ARGS=$(cat <<EOF
-        {
-        "--REDSHIFT_HOST": "$REDSHIFT_HOST",
-        "--REDSHIFT_PASSWORD": "$RS_PASS"
-        }
-        EOF
-        )
+                        ARGS=$(printf '{\"--REDSHIFT_HOST\":\"%s\",\"--REDSHIFT_PASSWORD\":\"%s\"}' \
+                            "$REDSHIFT_HOST" \
+                            "$RS_PASS")
 
                         echo "Arguments JSON:"
                         echo "$ARGS"
