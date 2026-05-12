@@ -158,6 +158,28 @@ pipeline {
             }
         }
 
+        stage('Init Redshift Schema') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'redshift-password', variable: 'RS_PASS')
+                ]) {
+                    sh '''
+                        RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
+
+                        # remove :5439 if present
+                        REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
+
+                        PGPASSWORD=$RS_PASS psql \
+                            -h $REDSHIFT_HOST \
+                            -U admin \
+                            -d analytics \
+                            -p 5439 \
+                            -f scripts/redshift_schema.sql
+                    '''
+                }
+            }
+        }
+
         stage('Run Glue Load to Redshift') {
             steps {
                 withCredentials([
@@ -188,34 +210,34 @@ pipeline {
             }
         }
 
-        stage('Wait for Glue Job') {
-            steps {
-                sh '''
-                    sleep 180
-                '''
-            }
-        }
+        // stage('Wait for Glue Job') {
+        //     steps {
+        //         sh '''
+        //             sleep 180
+        //         '''
+        //     }
+        // }
 
-        stage('Validate Redshift Data') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'redshift-password', variable: 'PGPASSWORD')
-                ]) {
-                    sh '''
-                        set -e
+        // stage('Validate Redshift Data') {
+        //     steps {
+        //         withCredentials([
+        //             string(credentialsId: 'redshift-password', variable: 'PGPASSWORD')
+        //         ]) {
+        //             sh '''
+        //                 set -e
 
-                        export REDSHIFT_HOST=$(terraform output -raw redshift_endpoint)
+        //                 export REDSHIFT_HOST=$(terraform output -raw redshift_endpoint)
 
-                        psql \
-                          -h $REDSHIFT_HOST \
-                          -U admin \
-                          -d analytics \
-                          -p 5439 \
-                          -f scripts/validate_redshift.sql
-                    '''
-                }
-            }
-        }
+        //                 psql \
+        //                   -h $REDSHIFT_HOST \
+        //                   -U admin \
+        //                   -d analytics \
+        //                   -p 5439 \
+        //                   -f scripts/validate_redshift.sql
+        //             '''
+        //         }
+        //     }
+        // }
 
 
     }

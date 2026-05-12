@@ -1,23 +1,21 @@
 -- =====================================================
--- Pagila Redshift Schema (Staging / Analytics Layer)
+-- Pagila Redshift Staging Schema
 -- =====================================================
 
-CREATE SCHEMA IF NOT EXISTS pagila;
-
-SET search_path TO pagila;
+CREATE SCHEMA IF NOT EXISTS pagila_staging;
 
 -- =====================================================
--- DIMENSION TABLES
+-- DIMENSIONS
 -- =====================================================
 
-CREATE TABLE IF NOT EXISTS actor (
+CREATE TABLE IF NOT EXISTS pagila_staging.actor (
     actor_id     INTEGER,
     first_name   VARCHAR(45),
     last_name    VARCHAR(45),
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS address (
+CREATE TABLE IF NOT EXISTS pagila_staging.address (
     address_id   INTEGER,
     address      VARCHAR(50),
     address2     VARCHAR(50),
@@ -28,26 +26,26 @@ CREATE TABLE IF NOT EXISTS address (
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS category (
+CREATE TABLE IF NOT EXISTS pagila_staging.category (
     category_id  INTEGER,
     name         VARCHAR(25),
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS city (
+CREATE TABLE IF NOT EXISTS pagila_staging.city (
     city_id      INTEGER,
     city         VARCHAR(50),
     country_id   INTEGER,
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS country (
+CREATE TABLE IF NOT EXISTS pagila_staging.country (
     country_id   INTEGER,
     country      VARCHAR(50),
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS customer (
+CREATE TABLE IF NOT EXISTS pagila_staging.customer (
     customer_id  INTEGER,
     store_id     INTEGER,
     first_name   VARCHAR(45),
@@ -60,13 +58,13 @@ CREATE TABLE IF NOT EXISTS customer (
     active       INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS language (
+CREATE TABLE IF NOT EXISTS pagila_staging.language (
     language_id  INTEGER,
     name         VARCHAR(20),
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS staff (
+CREATE TABLE IF NOT EXISTS pagila_staging.staff (
     staff_id     INTEGER,
     first_name   VARCHAR(45),
     last_name    VARCHAR(45),
@@ -80,7 +78,7 @@ CREATE TABLE IF NOT EXISTS staff (
     picture      VARCHAR(255)
 );
 
-CREATE TABLE IF NOT EXISTS store (
+CREATE TABLE IF NOT EXISTS pagila_staging.store (
     store_id     INTEGER,
     manager_staff_id INTEGER,
     address_id   INTEGER,
@@ -88,10 +86,10 @@ CREATE TABLE IF NOT EXISTS store (
 );
 
 -- =====================================================
--- FACT TABLES
+-- FACTS
 -- =====================================================
 
-CREATE TABLE IF NOT EXISTS film (
+CREATE TABLE IF NOT EXISTS pagila_staging.film (
     film_id              INTEGER,
     title                VARCHAR(255),
     description          VARCHAR(1000),
@@ -107,26 +105,26 @@ CREATE TABLE IF NOT EXISTS film (
     fulltext             VARCHAR(255)
 );
 
-CREATE TABLE IF NOT EXISTS film_actor (
+CREATE TABLE IF NOT EXISTS pagila_staging.film_actor (
     actor_id     INTEGER,
     film_id      INTEGER,
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS film_category (
+CREATE TABLE IF NOT EXISTS pagila_staging.film_category (
     film_id      INTEGER,
     category_id  INTEGER,
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS inventory (
+CREATE TABLE IF NOT EXISTS pagila_staging.inventory (
     inventory_id INTEGER,
     film_id      INTEGER,
     store_id     INTEGER,
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS rental (
+CREATE TABLE IF NOT EXISTS pagila_staging.rental (
     rental_id    INTEGER,
     rental_date  TIMESTAMP,
     inventory_id INTEGER,
@@ -136,7 +134,7 @@ CREATE TABLE IF NOT EXISTS rental (
     last_update  TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS payment (
+CREATE TABLE IF NOT EXISTS pagila_staging.payment (
     payment_id   INTEGER,
     customer_id  INTEGER,
     staff_id     INTEGER,
@@ -144,10 +142,3 @@ CREATE TABLE IF NOT EXISTS payment (
     amount       NUMERIC(5,2),
     payment_date TIMESTAMP
 );
-
--- =====================================================
--- NOTES
--- =====================================================
--- 1. No PRIMARY KEY / FOREIGN KEY constraints (Redshift does not enforce them)
--- 2. Designed for COPY from S3 CSV files
--- 3. Optimized for demo ETL pipelines, not OLTP correctness
