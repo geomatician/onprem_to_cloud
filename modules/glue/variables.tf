@@ -14,3 +14,7 @@ variable "glue_max_capacity" {
   type    = number
   default = 2
 }
+
+variable "glue_role_arn" {
+  type = string
+}

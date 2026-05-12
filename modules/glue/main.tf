@@ -1,6 +1,6 @@
 resource "aws_glue_job" "this" {
   name     = "s3-to-redshift-${var.environment}"
-  role_arn = aws_iam_role.glue_role.arn
+  role_arn = var.glue_role_arn
 
   glue_version = "4.0"
   max_capacity = var.glue_max_capacity
