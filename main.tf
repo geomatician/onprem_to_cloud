@@ -50,7 +50,7 @@ module "glue" {
 
   subnet_id = data.aws_subnets.default.ids[0]
 
-  availability_zone = "us-east-1a"
+  availability_zone = data.aws_subnet.glue_subnet.availability_zone
 
   redshift_security_group_id = module.security_groups.redshift_sg
   glue_security_group_id     = module.security_groups.glue_sg

@@ -8,3 +8,7 @@ data "aws_subnets" "default" {
     values = [data.aws_vpc.default.id]
   }
 }
+
+data "aws_subnet" "glue_subnet" {
+  id = data.aws_subnets.default.ids[0]
+}
