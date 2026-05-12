@@ -22,6 +22,6 @@ variable "s3_bucket_name" {
   type = string
 }
 
-variable "dms_role_arn" {
+variable "dms_s3_role_arn" {
   type = string
 }
