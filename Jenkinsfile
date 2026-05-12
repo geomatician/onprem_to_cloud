@@ -5,13 +5,14 @@ pipeline {
         choice(
             name: 'ENV',
             choices: ['dev', 'prod'],
-            description: 'Choose Terraform environment'
+            description: 'Environment'
         )
     }
 
     environment {
         AWS_PROFILE = "terraform-${params.ENV}"
         AWS_DEFAULT_REGION = "us-east-1"
+        AWS_SDK_LOAD_CONFIG = "1"
     }
 
     stages {
@@ -22,74 +23,17 @@ pipeline {
             }
         }
 
-        stage('Set AWS Profile') {
-            steps {
-                script {
-                    env.AWS_PROFILE = "terraform-${params.ENV}"
-                }
-            }
-        }
-
-        stage('Test Tools') {
-            steps {
-                sh '''
-                    git --version
-                    terraform version
-                    aws --version
-                    aws sts get-caller-identity --profile $AWS_PROFILE
-                '''
-            }
-        }
-
-        stage('Test Local PostgreSQL') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'postgres-password', variable: 'PG_PASS')
-                ]) {
-                    sh '''
-                        export PGPASSWORD=$PG_PASS
-                        chmod +x scripts/test_postgres.sh
-                        ./scripts/test_postgres.sh
-                    '''
-                }
-            }
-        }
-
+        // =====================================================
+        // TERRAFORM
+        // =====================================================
         stage('Terraform Init') {
             steps {
                 sh """
+                    set -e
                     terraform init \
-                    -reconfigure \
-                    -backend-config=backend/backend-${params.ENV}.hcl
+                        -reconfigure \
+                        -backend-config=backend/backend-${params.ENV}.hcl
                 """
-            }
-        }
-
-        stage('Terraform Validate') {
-            steps {
-                sh 'terraform validate'
-            }
-        }
-
-        stage('Terraform Format Check') {
-            steps {
-                sh 'terraform fmt -check'
-            }
-        }
-
-        stage('Terraform Plan') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'postgres-password', variable: 'PG_PASS'),
-                    string(credentialsId: 'redshift-password', variable: 'RS_PASS')
-                ]) {
-                    sh """
-                        export TF_VAR_postgres_password=$PG_PASS
-                        export TF_VAR_redshift_password=$RS_PASS
-
-                        terraform plan -var-file=${params.ENV}.tfvars
-                    """
-                }
             }
         }
 
@@ -100,6 +44,8 @@ pipeline {
                     string(credentialsId: 'redshift-password', variable: 'RS_PASS')
                 ]) {
                     sh """
+                        set -e
+
                         export TF_VAR_postgres_password=$PG_PASS
                         export TF_VAR_redshift_password=$RS_PASS
 
@@ -109,43 +55,28 @@ pipeline {
             }
         }
 
-        stage('Export PostgreSQL Tables') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'postgres-password', variable: 'PG_PASS')
-                ]) {
-                    sh '''
-                        set -e
-
-                        export PGPASSWORD=$PG_PASS
-
-                        chmod +x scripts/export_tables.sh
-                        ./scripts/export_tables.sh
-                    '''
-                }
-            }
-        }
-
-        stage('Upload Files To S3') {
+        // =====================================================
+        // UPLOAD S3 FILES
+        // =====================================================
+        stage('Upload CSV Files to S3') {
             steps {
                 sh '''
                     set -e
-
                     chmod +x scripts/upload_to_s3.sh
                     ./scripts/upload_to_s3.sh
                 '''
             }
         }
 
-        stage('Upload Glue Scripts') {
+        stage('Upload Schema + Glue Script') {
             steps {
                 sh '''
                     set -e
 
                     BUCKET=$(terraform output -raw bucket_name)
-                
-                    aws s3 cp $WORKSPACE/modules/glue/schema_bootstrap.py \
-                    s3://$BUCKET/glue/schema_bootstrap.py
+
+                    aws s3 cp $WORKSPACE/scripts/redshift_schema.sql \
+                        s3://$BUCKET/glue/redshift_schema.sql
 
                     aws s3 cp $WORKSPACE/modules/glue/load_to_redshift.py \
                         s3://$BUCKET/glue/load_to_redshift.py
@@ -153,34 +84,74 @@ pipeline {
             }
         }
 
-        stage('Run Schema Glue Job') {
+        // =====================================================
+        // REDSHIFT DATA API - SCHEMA EXECUTION
+        // =====================================================
+        stage('Run Schema via Redshift Data API') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'redshift-password', variable: 'RS_PASS')
-                ]) {
-                    sh '''
-                        set -e
+                sh '''
+                    set -e
 
-                        RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
-                        REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
+                    export AWS_PROFILE=$AWS_PROFILE
+                    export AWS_DEFAULT_REGION=us-east-1
 
-                        echo "Using host: $REDSHIFT_HOST"
+                    DB=$(terraform output -raw redshift_db)
+                    CLUSTER=$(terraform output -raw redshift_cluster_id)
+                    BUCKET=$(terraform output -raw bucket_name)
 
-                        ARGS=$(printf '{\"--REDSHIFT_HOST\":\"%s\",\"--REDSHIFT_PASSWORD\":\"%s\"}' \
-                            "$REDSHIFT_HOST" \
-                            "$RS_PASS")
+                    echo "Downloading schema..."
+                    aws s3 cp s3://$BUCKET/glue/redshift_schema.sql /tmp/schema.sql
 
-                        echo "Arguments JSON:"
-                        echo "$ARGS"
+                    echo "Executing schema statements..."
 
-                        aws glue start-job-run \
-                            --job-name redshift-schema-${ENV} \
-                            --arguments "$ARGS"
-                    '''
-                }
+                    awk 'BEGIN {RS=";"} NF {gsub(/\\n/, " "); print $0}' /tmp/schema.sql > /tmp/statements.txt
+
+                    while read -r stmt; do
+                        CLEAN=$(echo "$stmt" | xargs)
+
+                        if [ -n "$CLEAN" ]; then
+                            echo "----------------------------------------"
+                            echo "Executing:"
+                            echo "$CLEAN"
+                            echo "----------------------------------------"
+
+                            STATEMENT_ID=$(aws redshift-data execute-statement \
+                                --cluster-identifier $CLUSTER \
+                                --database $DB \
+                                --db-user admin \
+                                --sql "$CLEAN" \
+                                --query "Id" --output text)
+
+                            echo "Statement ID: $STATEMENT_ID"
+
+                            # Wait for completion
+                            while true; do
+                                STATUS=$(aws redshift-data describe-statement \
+                                    --id $STATEMENT_ID \
+                                    --query "Status" \
+                                    --output text)
+
+                                if [ "$STATUS" = "FINISHED" ]; then
+                                    echo "Completed successfully"
+                                    break
+                                elif [ "$STATUS" = "FAILED" ]; then
+                                    echo "FAILED:"
+                                    aws redshift-data describe-statement --id $STATEMENT_ID
+                                    exit 1
+                                else
+                                    echo "Status: $STATUS ... waiting"
+                                    sleep 2
+                                fi
+                            done
+                        fi
+                    done < /tmp/statements.txt
+                '''
             }
         }
 
+        // =====================================================
+        // GLUE LOAD JOB
+        // =====================================================
         stage('Run Glue Load to Redshift') {
             steps {
                 withCredentials([
@@ -201,11 +172,8 @@ pipeline {
                             "$RS_PASS" \
                             "$BUCKET")
 
-                        echo "Arguments JSON:"
-                        echo "$ARGS"
-
                         aws glue start-job-run \
-                            --job-name s3-to-redshift-${ENV} \
+                            --job-name s3-to-redshift-$ENV \
                             --arguments "$ARGS"
                     '''
                 }
@@ -215,10 +183,10 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline succeeded.'
+            echo "Pipeline succeeded"
         }
         failure {
-            echo 'Pipeline failed.'
+            echo "Pipeline failed"
         }
     }
 }

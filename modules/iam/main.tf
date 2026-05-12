@@ -73,6 +73,13 @@ resource "aws_iam_role_policy" "glue_s3_redshift" {
           "redshift-data:*"
         ],
         Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:*"
+        ],
+        Resource = "*"
       }
     ]
   })

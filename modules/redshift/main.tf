@@ -18,6 +18,8 @@ resource "aws_redshift_cluster" "this" {
 
   skip_final_snapshot = true
 
+  enable_data_api = true
+
   lifecycle {
     ignore_changes = [
       encrypted,
