@@ -2,7 +2,7 @@
 
 set -e
 
-mkdir -p export
+mkdir -p exports/data
 
 echo "Starting PostgreSQL table exports..."
 
@@ -33,7 +33,7 @@ do
     -U dms_user \
     -d pagila \
     -c "\copy (SELECT * FROM public.$TABLE) TO STDOUT WITH CSV HEADER" \
-    > exports/${TABLE}.csv
+    > exports/data/${TABLE}.csv
 
   echo "$TABLE export complete."
 
