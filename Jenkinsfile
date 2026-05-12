@@ -153,7 +153,7 @@ pipeline {
             }
         }
 
-        stage('Run Redshift Schema Bootstrap Glue Job') {
+        stage('Run Schema Glue Job') {
             steps {
                 withCredentials([
                     string(credentialsId: 'redshift-password', variable: 'RS_PASS')
@@ -164,12 +164,22 @@ pipeline {
                         RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
                         REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
 
+                        echo "Using host: $REDSHIFT_HOST"
+
+                        ARGS=$(cat <<EOF
+        {
+        "--REDSHIFT_HOST": "$REDSHIFT_HOST",
+        "--REDSHIFT_PASSWORD": "$RS_PASS"
+        }
+        EOF
+        )
+
+                        echo "Arguments JSON:"
+                        echo "$ARGS"
+
                         aws glue start-job-run \
                             --job-name redshift-schema-${ENV} \
-                            --arguments "{
-                                \"--REDSHIFT_HOST\": \"$REDSHIFT_HOST\",
-                                \"--REDSHIFT_PASSWORD\": \"$RS_PASS\"
-                            }"
+                            --arguments "$ARGS"
                     '''
                 }
             }
