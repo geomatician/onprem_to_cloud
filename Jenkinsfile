@@ -144,10 +144,10 @@ pipeline {
 
                     BUCKET=$(terraform output -raw bucket_name)
                 
-                    aws s3 cp $WORKSPACE/glue/schema_bootstrap.py \
+                    aws s3 cp $WORKSPACE/modules/glue/schema_bootstrap.py \
                     s3://$BUCKET/glue/schema_bootstrap.py
 
-                    aws s3 cp $WORKSPACE/glue/load_to_redshift.py \
+                    aws s3 cp $WORKSPACE/modules/glue/load_to_redshift.py \
                         s3://$BUCKET/glue/load_to_redshift.py
                 '''
             }
