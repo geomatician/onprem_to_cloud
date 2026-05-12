@@ -146,6 +146,23 @@ pipeline {
             }
         }
 
+        stage('Load Data Into Redshift') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'redshift-password', variable: 'PGPASSWORD')
+                ]) {
+                    sh '''
+                        set -e
+
+                        chmod +x scripts/load_redshift.sh
+
+                        ./scripts/load_redshift.sh
+                    '''
+                }
+            }
+        }
+
+
     }
 
     post {
