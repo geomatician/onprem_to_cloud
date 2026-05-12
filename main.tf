@@ -46,7 +46,6 @@ module "dms" {
   postgres_username = var.postgres_username
   postgres_password = var.postgres_password
 
-  s3_bucket_name = module.s3.bucket_name
-
-  dms_role_arn = module.iam.dms_role_arn
+  s3_bucket_name  = module.s3.bucket_name
+  dms_s3_role_arn = module.iam.dms_s3_role_arn
 }
