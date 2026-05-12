@@ -17,7 +17,7 @@ resource "aws_glue_job" "this" {
     "--TempDir"        = "s3://${var.s3_bucket_name}/tmp/"
 
     # install psycopg2 at Glue runtime
-    "--additional-python-modules" = "psycopg2-binary"
+    "--extra-py-files" = "s3://${var.s3_bucket_name}/glue/psycopg2_binary-2.9.12-cp310-cp310-macosx_11_0_arm64.whl"
   }
 
   connections = [

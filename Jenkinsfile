@@ -43,10 +43,15 @@ pipeline {
 
         stage('Test Local PostgreSQL') {
             steps {
-                sh '''
-                    chmod +x scripts/test_postgres.sh
-                    ./scripts/test_postgres.sh
-                '''
+                withCredentials([
+                    string(credentialsId: 'postgres-password', variable: 'PG_PASS')
+                ]) {
+                    sh '''
+                        export PGPASSWORD=$PG_PASS
+                        chmod +x scripts/test_postgres.sh
+                        ./scripts/test_postgres.sh
+                    '''
+                }
             }
         }
 
@@ -104,30 +109,17 @@ pipeline {
             }
         }
 
-        stage('Export PostgreSQL Schema') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'postgres-password', variable: 'PGPASSWORD')
-                ]) {
-                    sh '''
-                        chmod +x scripts/export_schema.sh
-
-                        ./scripts/export_schema.sh
-                    '''
-                }
-            }
-        }
-
         stage('Export PostgreSQL Tables') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'postgres-password', variable: 'PGPASSWORD')
+                    string(credentialsId: 'postgres-password', variable: 'PG_PASS')
                 ]) {
                     sh '''
                         set -e
 
-                        chmod +x scripts/export_tables.sh
+                        export PGPASSWORD=$PG_PASS
 
+                        chmod +x scripts/export_tables.sh
                         ./scripts/export_tables.sh
                     '''
                 }
@@ -140,7 +132,6 @@ pipeline {
                     set -e
 
                     chmod +x scripts/upload_to_s3.sh
-
                     ./scripts/upload_to_s3.sh
                 '''
             }
@@ -153,11 +144,11 @@ pipeline {
 
                     BUCKET=$(terraform output -raw bucket_name)
 
-                    aws s3 cp $WORKSPACE/modules/glue/load_to_redshift.py s3://$BUCKET/glue/load_to_redshift.py
+                    aws s3 cp $WORKSPACE/glue/load_to_redshift.py \
+                        s3://$BUCKET/glue/load_to_redshift.py
                 '''
             }
         }
-
 
         stage('Run Glue Load to Redshift') {
             steps {
@@ -170,50 +161,21 @@ pipeline {
                         BUCKET=$(terraform output -raw bucket_name)
 
                         RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
-
                         REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
+
+                        echo "Running Glue job with host: $REDSHIFT_HOST"
 
                         aws glue start-job-run \
                             --job-name s3-to-redshift-${ENV} \
-                            --arguments '{
-                                "--REDSHIFT_HOST":"'"$REDSHIFT_HOST"'",
-                                "--REDSHIFT_PASSWORD":"'"$RS_PASS"'",
-                                "--S3_BUCKET":"'"$BUCKET"'"
-                            }'
+                            --arguments "{
+                                \"--REDSHIFT_HOST\": \"$REDSHIFT_HOST\",
+                                \"--REDSHIFT_PASSWORD\": \"$RS_PASS\",
+                                \"--S3_BUCKET\": \"$BUCKET\"
+                            }"
                     '''
                 }
             }
         }
-
-        // stage('Wait for Glue Job') {
-        //     steps {
-        //         sh '''
-        //             sleep 180
-        //         '''
-        //     }
-        // }
-
-        // stage('Validate Redshift Data') {
-        //     steps {
-        //         withCredentials([
-        //             string(credentialsId: 'redshift-password', variable: 'PGPASSWORD')
-        //         ]) {
-        //             sh '''
-        //                 set -e
-
-        //                 export REDSHIFT_HOST=$(terraform output -raw redshift_endpoint)
-
-        //                 psql \
-        //                   -h $REDSHIFT_HOST \
-        //                   -U admin \
-        //                   -d analytics \
-        //                   -p 5439 \
-        //                   -f scripts/validate_redshift.sql
-        //             '''
-        //         }
-        //     }
-        // }
-
 
     }
 
