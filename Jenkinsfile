@@ -164,16 +164,22 @@ pipeline {
                     string(credentialsId: 'redshift-password', variable: 'RS_PASS')
                 ]) {
                     sh '''
+                        set -e
+
                         BUCKET=$(terraform output -raw bucket_name)
 
-                        REDSHIFT_ENDPOINT=$(terraform output -raw redshift_endpoint)
+                        RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
 
-                        echo "Starting Glue job..."
+                        # remove :5439 if present
+                        REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
+
+                        echo "Bucket: $BUCKET"
+                        echo "Redshift Host: $REDSHIFT_HOST"
 
                         aws glue start-job-run \
                             --job-name s3-to-redshift-${ENV} \
                             --arguments '{
-                                "--REDSHIFT_HOST":"'"$REDSHIFT_ENDPOINT"'",
+                                "--REDSHIFT_HOST":"'"$REDSHIFT_HOST"'",
                                 "--REDSHIFT_PASSWORD":"'"$RS_PASS"'",
                                 "--S3_BUCKET":"'"$BUCKET"'"
                             }'
