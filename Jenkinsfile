@@ -118,6 +118,34 @@ pipeline {
             }
         }
 
+        stage('Export PostgreSQL Tables') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'postgres-password', variable: 'PGPASSWORD')
+                ]) {
+                    sh '''
+                        set -e
+
+                        chmod +x scripts/export_tables.sh
+
+                        ./scripts/export_tables.sh
+                    '''
+                }
+            }
+        }
+
+        stage('Upload Files To S3') {
+            steps {
+                sh '''
+                    set -e
+
+                    chmod +x scripts/upload_to_s3.sh
+
+                    ./scripts/upload_to_s3.sh
+                '''
+            }
+        }
+
     }
 
     post {
