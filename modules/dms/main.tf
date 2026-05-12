@@ -30,7 +30,7 @@ resource "aws_dms_s3_endpoint" "target" {
   endpoint_type = "target"
   bucket_name   = var.s3_bucket_name
 
-  service_access_role_arn = var.dms_role_arn
+  service_access_role_arn = var.dms_s3_role_arn
 
   csv_row_delimiter = "\n"
   csv_delimiter     = ","
