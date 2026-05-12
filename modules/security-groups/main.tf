@@ -18,15 +18,24 @@ resource "aws_security_group" "redshift_sg" {
 }
 
 resource "aws_security_group" "glue_sg" {
-  name        = "glue-sg-${var.environment}"
-  description = "Glue security group"
-  vpc_id      = var.vpc_id
+  name   = "glue-sg-${var.environment}"
+  vpc_id = var.vpc_id
 
+  # REQUIRED: allow all outbound
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # IMPORTANT: self-referencing ingress (fixes Glue validation error)
+  ingress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+
+    self = true
   }
 }
 
