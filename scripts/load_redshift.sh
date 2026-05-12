@@ -2,7 +2,15 @@
 
 set -e
 
-REDSHIFT_HOST=$(terraform output -raw redshift_endpoint)
+REDSHIFT_ENDPOINT=$(terraform output -raw redshift_endpoint)
+
+# Split host and port
+REDSHIFT_HOST=$(echo $REDSHIFT_ENDPOINT | cut -d: -f1)
+REDSHIFT_PORT=$(echo $REDSHIFT_ENDPOINT | cut -d: -f2)
+
+echo "Host: $REDSHIFT_HOST"
+echo "Port: $REDSHIFT_PORT"
+
 BUCKET=$(terraform output -raw bucket_name)
 IAM_ROLE=$(terraform output -raw redshift_role_arn)
 

@@ -162,6 +162,27 @@ pipeline {
             }
         }
 
+        stage('Validate Redshift Data') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'redshift-password', variable: 'PGPASSWORD')
+                ]) {
+                    sh '''
+                        set -e
+
+                        export REDSHIFT_HOST=$(terraform output -raw redshift_endpoint)
+
+                        psql \
+                          -h $REDSHIFT_HOST \
+                          -U admin \
+                          -d analytics \
+                          -p 5439 \
+                          -f scripts/validate_redshift.sql
+                    '''
+                }
+            }
+        }
+
 
     }
 
