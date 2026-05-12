@@ -16,8 +16,6 @@ resource "aws_glue_job" "this" {
     "--enable-metrics" = ""
     "--TempDir"        = "s3://${var.s3_bucket_name}/tmp/"
 
-    # install psycopg2 at Glue runtime
-    "--extra-py-files" = "s3://${var.s3_bucket_name}/glue/psycopg2_binary-2.9.12-cp310-cp310-macosx_11_0_arm64.whl"
   }
 
   connections = [
@@ -43,10 +41,17 @@ resource "aws_glue_job" "schema_bootstrap" {
   }
 
   default_arguments = {
-    "--job-language" = "python"
-    "--TempDir"      = "s3://${var.s3_bucket_name}/tmp/"
+    "--job-language"   = "python"
+    "--enable-metrics" = ""
+    "--TempDir"        = "s3://${var.s3_bucket_name}/tmp/"
+  }
 
-    # NO psycopg2, NO extra modules
+  connections = [
+    aws_glue_connection.redshift.name
+  ]
+
+  tags = {
+    Environment = var.environment
   }
 }
 
