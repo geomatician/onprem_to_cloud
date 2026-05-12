@@ -146,12 +146,44 @@ pipeline {
             }
         }
 
-        stage('Run Glue ETL') {
+        stage('Upload Glue Script') {
             steps {
                 sh '''
-                    aws glue start-job-run \
-                    --job-name s3-to-redshift-dev \
-                    --region us-east-1
+                    BUCKET=$(terraform output -raw bucket_name)
+
+                    aws s3 cp ./glue/load_to_redshift.py s3://$BUCKET/glue/load_to_redshift.py
+                '''
+            }
+        }
+
+        stage('Run Glue Load to Redshift') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'redshift-password', variable: 'RS_PASS')
+                ]) {
+                    sh '''
+                        BUCKET=$(terraform output -raw bucket_name)
+
+                        REDSHIFT_ENDPOINT=$(terraform output -raw redshift_endpoint)
+
+                        echo "Starting Glue job..."
+
+                        aws glue start-job-run \
+                            --job-name s3-to-redshift-${ENV} \
+                            --arguments '{
+                                "--REDSHIFT_HOST":"'"$REDSHIFT_ENDPOINT"'",
+                                "--REDSHIFT_PASSWORD":"'"$RS_PASS"'",
+                                "--S3_BUCKET":"'"$BUCKET"'"
+                            }'
+                    '''
+                }
+            }
+        }
+
+        stage('Wait for Glue Job') {
+            steps {
+                sh '''
+                    sleep 180
                 '''
             }
         }
