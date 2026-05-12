@@ -11,6 +11,7 @@ module "vpc" {
 module "security_groups" {
   source      = "./modules/security-groups"
   vpc_id      = module.vpc.vpc_id
+  vpc_cidr    = data.aws_vpc.default.cidr_block
   environment = var.environment
 }
 
