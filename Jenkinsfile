@@ -137,16 +137,41 @@ pipeline {
             }
         }
 
-        stage('Upload Glue Script') {
+        stage('Upload Glue Scripts') {
             steps {
                 sh '''
                     set -e
 
                     BUCKET=$(terraform output -raw bucket_name)
+                
+                    aws s3 cp $WORKSPACE/glue/schema_bootstrap.py \
+                    s3://$BUCKET/glue/schema_bootstrap.py
 
                     aws s3 cp $WORKSPACE/glue/load_to_redshift.py \
                         s3://$BUCKET/glue/load_to_redshift.py
                 '''
+            }
+        }
+
+        stage('Run Redshift Schema Bootstrap Glue Job') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'redshift-password', variable: 'RS_PASS')
+                ]) {
+                    sh '''
+                        set -e
+
+                        RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
+                        REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
+
+                        aws glue start-job-run \
+                            --job-name redshift-schema-${ENV} \
+                            --arguments "{
+                                \"--REDSHIFT_HOST\": \"$REDSHIFT_HOST\",
+                                \"--REDSHIFT_PASSWORD\": \"$RS_PASS\"
+                            }"
+                    '''
+                }
             }
         }
 

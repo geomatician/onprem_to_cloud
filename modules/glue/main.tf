@@ -29,6 +29,27 @@ resource "aws_glue_job" "this" {
   }
 }
 
+resource "aws_glue_job" "schema_bootstrap" {
+  name     = "redshift-schema-${var.environment}"
+  role_arn = var.glue_role_arn
+
+  glue_version = "4.0"
+  max_capacity = 2
+
+  command {
+    name            = "glueetl"
+    script_location = "s3://${var.s3_bucket_name}/glue/schema_bootstrap.py"
+    python_version  = "3"
+  }
+
+  default_arguments = {
+    "--job-language" = "python"
+    "--TempDir"      = "s3://${var.s3_bucket_name}/tmp/"
+
+    # NO psycopg2, NO extra modules
+  }
+}
+
 resource "aws_glue_connection" "redshift" {
   name = "redshift-connection-${var.environment}"
 

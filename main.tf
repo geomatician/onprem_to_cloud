@@ -62,21 +62,3 @@ module "glue" {
   redshift_security_group_id = module.security_groups.redshift_sg
   glue_security_group_id     = module.security_groups.glue_sg
 }
-
-resource "null_resource" "redshift_schema" {
-
-  depends_on = [module.redshift]
-
-  provisioner "local-exec" {
-    command = <<EOT
-      echo "Creating Redshift schema..."
-
-      PGPASSWORD=${var.redshift_password} psql \
-        -h ${local.redshift_host} \
-        -U admin \
-        -d analytics \
-        -p 5439 \
-        -f ${path.module}/scripts/redshift_schema.sql
-    EOT
-  }
-}
