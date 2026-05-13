@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS pagila_staging.staff (
     email VARCHAR(50),
     store_id INTEGER,
     active BOOLEAN,
-    username VARCHAR(16),
+    username VARCHAR(25),
     password VARCHAR(40),
     last_update TIMESTAMP,
     picture VARCHAR(255)
