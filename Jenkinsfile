@@ -330,64 +330,163 @@ pipeline {
         // =====================================================
         // GLUE LOAD JOB
         // =====================================================
-        stage('Run Glue Load to Redshift (and wait)') {
+        // stage('Run Glue Load to Redshift (and wait)') {
+        //     steps {
+        //         withCredentials([
+        //             string(credentialsId: 'redshift-password', variable: 'RS_PASS')
+        //         ]) {
+        //             sh '''
+        //                 set -e
+
+        //                 BUCKET=$(terraform output -raw bucket_name)
+
+        //                 RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
+        //                 REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
+
+        //                 echo "Starting Glue job..."
+
+        //                 ARGS=$(printf '{\"--REDSHIFT_HOST\":\"%s\",\"--REDSHIFT_PASSWORD\":\"%s\",\"--S3_BUCKET\":\"%s\"}' \
+        //                     "$REDSHIFT_HOST" \
+        //                     "$RS_PASS" \
+        //                     "$BUCKET")
+
+        //                 RUN_ID=$(aws glue start-job-run \
+        //                     --job-name s3-to-redshift-$ENV \
+        //                     --arguments "$ARGS" \
+        //                     --query 'JobRunId' \
+        //                     --output text)
+
+        //                 echo "Glue JobRunId: $RUN_ID"
+
+        //                 echo "Waiting for Glue job to complete..."
+
+        //                 while true; do
+        //                     STATUS=$(aws glue get-job-run \
+        //                         --job-name s3-to-redshift-$ENV \
+        //                         --run-id $RUN_ID \
+        //                         --query 'JobRun.JobRunState' \
+        //                         --output text)
+
+        //                     echo "Status: $STATUS"
+
+        //                     if [ "$STATUS" = "SUCCEEDED" ]; then
+        //                         echo "Glue job succeeded"
+        //                         break
+        //                     fi
+
+        //                     if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "ERROR" ] || [ "$STATUS" = "TIMEOUT" ]; then
+        //                         echo "Glue job failed"
+        //                         aws glue get-job-run \
+        //                             --job-name s3-to-redshift-$ENV \
+        //                             --run-id $RUN_ID
+        //                         exit 1
+        //                     fi
+
+        //                     sleep 10
+        //                 done
+        //             '''
+        //         }
+        //     }
+        // }
+
+        stage('Load Data via Redshift COPY (S3 → Redshift)') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'redshift-password', variable: 'RS_PASS')
-                ]) {
-                    sh '''
-                        set -e
+                sh '''
+                    set -e
 
-                        BUCKET=$(terraform output -raw bucket_name)
+                    CLUSTER=$(terraform output -raw cluster_identifier)
+                    BUCKET=$(terraform output -raw bucket_name)
+                    IAM_ROLE=$(terraform output -raw redshift_role_arn)
 
-                        RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
-                        REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
+                    echo "========================================"
+                    echo "STARTING REDSHIFT COPY LOAD"
+                    echo "========================================"
 
-                        echo "Starting Glue job..."
+                    run_copy () {
+                        TABLE=$1
 
-                        ARGS=$(printf '{\"--REDSHIFT_HOST\":\"%s\",\"--REDSHIFT_PASSWORD\":\"%s\",\"--S3_BUCKET\":\"%s\"}' \
-                            "$REDSHIFT_HOST" \
-                            "$RS_PASS" \
-                            "$BUCKET")
+                        echo ""
+                        echo "----------------------------------------"
+                        echo "Loading table: $TABLE"
+                        echo "----------------------------------------"
 
-                        RUN_ID=$(aws glue start-job-run \
-                            --job-name s3-to-redshift-$ENV \
-                            --arguments "$ARGS" \
-                            --query 'JobRunId' \
+                        SQL="
+                        TRUNCATE TABLE pagila_staging.$TABLE;
+
+                        COPY pagila_staging.$TABLE
+                        FROM 's3://$BUCKET/raw/$TABLE/'
+                        IAM_ROLE '$IAM_ROLE'
+                        CSV
+                        IGNOREHEADER 1
+                        EMPTYASNULL
+                        BLANKSASNULL
+                        TIMEFORMAT 'auto';
+                        "
+
+                        echo "$SQL"
+
+                        STATEMENT_ID=$(aws redshift-data execute-statement \
+                            --cluster-identifier $CLUSTER \
+                            --database analytics \
+                            --db-user admin \
+                            --sql "$SQL" \
+                            --query Id \
                             --output text)
 
-                        echo "Glue JobRunId: $RUN_ID"
+                        echo "Statement ID: $STATEMENT_ID"
 
-                        echo "Waiting for Glue job to complete..."
-
+                        # Wait for execution
                         while true; do
-                            STATUS=$(aws glue get-job-run \
-                                --job-name s3-to-redshift-$ENV \
-                                --run-id $RUN_ID \
-                                --query 'JobRun.JobRunState' \
+                            STATUS=$(aws redshift-data describe-statement \
+                                --id $STATEMENT_ID \
+                                --query Status \
                                 --output text)
 
-                            echo "Status: $STATUS"
+                            echo "$TABLE status: $STATUS"
 
-                            if [ "$STATUS" = "SUCCEEDED" ]; then
-                                echo "Glue job succeeded"
+                            if [ "$STATUS" = "FINISHED" ]; then
                                 break
                             fi
 
-                            if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "ERROR" ] || [ "$STATUS" = "TIMEOUT" ]; then
-                                echo "Glue job failed"
-                                aws glue get-job-run \
-                                    --job-name s3-to-redshift-$ENV \
-                                    --run-id $RUN_ID
+                            if [ "$STATUS" = "FAILED" ]; then
+                                echo "❌ COPY FAILED for table: $TABLE"
+                                aws redshift-data describe-statement --id $STATEMENT_ID
                                 exit 1
                             fi
 
-                            sleep 10
+                            sleep 3
                         done
-                    '''
-                }
+
+                        echo "✔ Completed: $TABLE"
+                    }
+
+                    # =====================================================
+                    # RUN ALL TABLES
+                    # =====================================================
+                    run_copy actor
+                    run_copy address
+                    run_copy category
+                    run_copy city
+                    run_copy country
+                    run_copy customer
+                    run_copy film
+                    run_copy film_actor
+                    run_copy film_category
+                    run_copy inventory
+                    run_copy language
+                    run_copy payment
+                    run_copy rental
+                    run_copy staff
+                    run_copy store
+
+                    echo ""
+                    echo "========================================"
+                    echo "ALL TABLES LOADED SUCCESSFULLY VIA COPY"
+                    echo "========================================"
+                '''
             }
         }
+
 
         stage('Validate Postgres Counts') {
             steps {
