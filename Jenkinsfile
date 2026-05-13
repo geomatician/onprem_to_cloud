@@ -216,7 +216,7 @@ pipeline {
 
                         psql \
                         -h host.docker.internal \
-                        -U postgres \
+                        -U dms_user \
                         -d pagila \
                         -p 5432 \
                         -f scripts/validate_postgres.sql \
