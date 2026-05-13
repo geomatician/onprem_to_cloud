@@ -103,7 +103,7 @@ pipeline {
                     aws s3 cp $WORKSPACE/modules/glue/load_to_redshift.py \
                         s3://$BUCKET/glue/load_to_redshift.py
 
-                    aws s3 cp $WORKSPACE/modules/glue/validate_redshift.sql \
+                    aws s3 cp $WORKSPACE/scripts/validate_redshift.sql \
                         s3://$BUCKET/glue/validate_redshift.sql
                 '''
             }
