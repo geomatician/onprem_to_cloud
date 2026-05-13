@@ -528,7 +528,10 @@ pipeline {
 
                         if [ "$STATUS" = "FAILED" ]; then
                             echo "Validation failed"
-                            aws redshift-data describe-statement --id $STATEMENT_ID
+
+                            aws redshift-data describe-statement \
+                                --id $STATEMENT_ID
+
                             exit 1
                         fi
 
@@ -540,25 +543,31 @@ pipeline {
                     echo "REDSHIFT TABLE COUNTS"
                     echo "========================================"
 
-                    # Get results in text format
+                    # Save Redshift result JSON
                     aws redshift-data get-statement-result \
                         --id $STATEMENT_ID \
                         --output json > /tmp/result.json
 
-                    # Print headers
-                    echo "table name|count"
+                    # Convert JSON results into psql-style output
+                    python3 - <<EOF > /tmp/rs_counts.txt
+        import json
 
-                    # Parse rows
-                    jq -r '
-                        .Records[] |
-                        [
-                            .[0].stringValue,
-                            (.[1].longValue | tostring)
-                        ] | join("|")
-                    ' /tmp/result.json
+        with open('/tmp/result.json') as f:
+            data = json.load(f)
 
-                    echo ""
-                    echo "(15 rows)"
+        print("table name|count")
+
+        for row in data["Records"]:
+            table = row[0]["stringValue"]
+            count = row[1]["longValue"]
+
+            print(f"{table}|{count}")
+
+        print("\\n(15 rows)")
+        EOF
+
+                    # Print formatted output
+                    cat /tmp/rs_counts.txt
                 '''
             }
         }
