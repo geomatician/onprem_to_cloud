@@ -1,74 +1,74 @@
-SELECT 'actor' AS table_name, COUNT(*) AS count
-FROM pagila_staging.actor
+SELECT 'actor' AS "table name", COUNT(*) AS "count"
+FROM public.actor
 
 UNION ALL
 
 SELECT 'address', COUNT(*)
-FROM pagila_staging.address
+FROM public.address
 
 UNION ALL
 
 SELECT 'category', COUNT(*)
-FROM pagila_staging.category
+FROM public.category
 
 UNION ALL
 
 SELECT 'city', COUNT(*)
-FROM pagila_staging.city
+FROM public.city
 
 UNION ALL
 
 SELECT 'country', COUNT(*)
-FROM pagila_staging.country
+FROM public.country
 
 UNION ALL
 
 SELECT 'customer', COUNT(*)
-FROM pagila_staging.customer
+FROM public.customer
 
 UNION ALL
 
 SELECT 'film', COUNT(*)
-FROM pagila_staging.film
+FROM public.film
 
 UNION ALL
 
 SELECT 'film_actor', COUNT(*)
-FROM pagila_staging.film_actor
+FROM public.film_actor
 
 UNION ALL
 
 SELECT 'film_category', COUNT(*)
-FROM pagila_staging.film_category
+FROM public.film_category
 
 UNION ALL
 
 SELECT 'inventory', COUNT(*)
-FROM pagila_staging.inventory
+FROM public.inventory
 
 UNION ALL
 
 SELECT 'language', COUNT(*)
-FROM pagila_staging.language
+FROM public.language
 
 UNION ALL
 
 SELECT 'payment', COUNT(*)
-FROM pagila_staging.payment
+FROM public.payment
 
 UNION ALL
 
 SELECT 'rental', COUNT(*)
-FROM pagila_staging.rental
+FROM public.rental
 
 UNION ALL
 
 SELECT 'staff', COUNT(*)
-FROM pagila_staging.staff
+FROM public.staff
 
 UNION ALL
 
 SELECT 'store', COUNT(*)
-FROM pagila_staging.store
+FROM public.store
 
-ORDER BY table_name;
+ORDER BY "table name";

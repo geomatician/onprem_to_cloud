@@ -2,14 +2,18 @@ output "redshift_endpoint" {
   value = module.redshift.endpoint
 }
 
-output "s3_bucket" {
+output "redshift_role_arn" {
+  value = module.iam.redshift_role_arn
+}
+
+output "cluster_identifier" {
+  value = module.redshift.cluster_identifier
+}
+
+output "bucket_name" {
   value = module.s3.bucket_name
 }
 
 output "vpc_id" {
   value = module.vpc.vpc_id
-}
-
-output "dms_task_arn" {
-  value = module.dms.task_arn
 }

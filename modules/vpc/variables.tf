@@ -1,7 +1,11 @@
-variable "vpc_cidr" {
+variable "vpc_id" {
   type = string
 }
 
-variable "environment" {
+variable "region" {
   type = string
+}
+
+variable "private_route_table_ids" {
+  type = list(string)
 }

@@ -1,12 +1,17 @@
 module "vpc" {
-  source      = "./modules/vpc"
-  vpc_cidr    = var.vpc_cidr
-  environment = var.environment
+  source = "./modules/vpc"
+
+  vpc_id = data.aws_vpc.default.id
+
+  region = var.aws_region
+
+  private_route_table_ids = data.aws_route_tables.private.ids
 }
 
 module "security_groups" {
   source      = "./modules/security-groups"
   vpc_id      = module.vpc.vpc_id
+  vpc_cidr    = data.aws_vpc.default.cidr_block
   environment = var.environment
 }
 
@@ -25,28 +30,14 @@ module "iam" {
 module "redshift" {
   source = "./modules/redshift"
 
-  environment        = var.environment
-  subnet_ids         = module.vpc.private_subnet_ids
+  environment = var.environment
+
+  subnet_ids = data.aws_subnets.default.ids
+
   security_group_ids = [module.security_groups.redshift_sg]
 
   username = var.redshift_username
   password = var.redshift_password
 
   iam_role_arn = module.iam.redshift_role_arn
-}
-
-module "dms" {
-  source = "./modules/dms"
-
-  environment = var.environment
-
-  subnet_ids = module.vpc.private_subnet_ids
-
-  postgres_endpoint = var.postgres_endpoint
-  postgres_username = var.postgres_username
-  postgres_password = var.postgres_password
-
-  s3_bucket_name = module.s3.bucket_name
-
-  dms_role_arn = module.iam.dms_role_arn
 }
