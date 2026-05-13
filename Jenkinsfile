@@ -414,7 +414,7 @@ pipeline {
                         TRUNCATE TABLE pagila_staging.$TABLE;
 
                         COPY pagila_staging.$TABLE
-                        FROM 's3://$BUCKET/raw/$TABLE/'
+                        FROM 's3://$BUCKET/raw/$TABLE'
                         IAM_ROLE '$IAM_ROLE'
                         CSV
                         IGNOREHEADER 1
