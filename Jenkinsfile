@@ -438,9 +438,9 @@ pipeline {
                     run_copy inventory
                     run_copy language
                     run_copy payment
-                    # run_copy rental
-                    # run_copy staff
-                    # run_copy store
+                    run_copy rental
+                    run_copy staff
+                    run_copy store
 
                     echo ""
                     echo "========================================"
