@@ -42,24 +42,24 @@ module "redshift" {
   iam_role_arn = module.iam.redshift_role_arn
 }
 
-module "glue" {
-  source = "./modules/glue"
+# module "glue" {
+#   source = "./modules/glue"
 
-  environment = var.environment
+#   environment = var.environment
 
-  glue_role_arn  = module.iam.glue_role_arn
-  s3_bucket_name = module.s3.bucket_name
+#   glue_role_arn  = module.iam.glue_role_arn
+#   s3_bucket_name = module.s3.bucket_name
 
-  redshift_host     = split(":", module.redshift.endpoint)[0]
-  redshift_username = var.redshift_username
-  redshift_password = var.redshift_password
+#   redshift_host     = split(":", module.redshift.endpoint)[0]
+#   redshift_username = var.redshift_username
+#   redshift_password = var.redshift_password
 
-  vpc_id = data.aws_vpc.default.id
+#   vpc_id = data.aws_vpc.default.id
 
-  subnet_id = data.aws_subnets.default.ids[0]
+#   subnet_id = data.aws_subnets.default.ids[0]
 
-  availability_zone = data.aws_subnet.glue_subnet.availability_zone
+#   availability_zone = data.aws_subnet.glue_subnet.availability_zone
 
-  redshift_security_group_id = module.security_groups.redshift_sg
-  glue_security_group_id     = module.security_groups.glue_sg
-}
+#   redshift_security_group_id = module.security_groups.redshift_sg
+#   glue_security_group_id     = module.security_groups.glue_sg
+# }
