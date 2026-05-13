@@ -9,10 +9,6 @@ data "aws_subnets" "default" {
   }
 }
 
-data "aws_subnet" "glue_subnet" {
-  id = data.aws_subnets.default.ids[0]
-}
-
 data "aws_route_tables" "private" {
   filter {
     name   = "vpc-id"

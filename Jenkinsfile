@@ -280,13 +280,10 @@ pipeline {
                     BUCKET=$(terraform output -raw bucket_name)
 
                     aws s3 cp $WORKSPACE/scripts/redshift_schema.sql \
-                        s3://$BUCKET/glue/redshift_schema.sql
-
-                    aws s3 cp $WORKSPACE/scripts/load_to_redshift.py \
-                        s3://$BUCKET/glue/load_to_redshift.py
+                        s3://$BUCKET/sql/redshift_schema.sql
 
                     aws s3 cp $WORKSPACE/scripts/validate_redshift.sql \
-                        s3://$BUCKET/glue/validate_redshift.sql
+                        s3://$BUCKET/sql/validate_redshift.sql
                 '''
             }
         }
@@ -306,7 +303,7 @@ pipeline {
                     BUCKET=$(terraform output -raw bucket_name)
 
                     echo "Downloading schema..."
-                    aws s3 cp s3://$BUCKET/glue/redshift_schema.sql /tmp/schema.sql
+                    aws s3 cp s3://$BUCKET/sql/redshift_schema.sql /tmp/schema.sql
 
                     echo "Executing schema statements..."
 
@@ -493,7 +490,7 @@ pipeline {
 
                     # Download validation SQL
                     aws s3 cp \
-                        s3://$BUCKET/glue/validate_redshift.sql \
+                        s3://$BUCKET/sql/validate_redshift.sql \
                         /tmp/rs.sql
 
                     SQL=$(cat /tmp/rs.sql)
