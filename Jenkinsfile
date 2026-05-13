@@ -487,7 +487,6 @@ pipeline {
             }
         }
 
-
         stage('Validate Postgres Counts') {
             steps {
                 withCredentials([
@@ -556,6 +555,7 @@ pipeline {
                 '''
             }
         }
+
         stage('Compare Source vs Target') {
             steps {
                 sh '''
