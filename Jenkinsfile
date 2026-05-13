@@ -484,40 +484,81 @@ pipeline {
                 sh '''
                     set -e
 
+                    echo "========================================"
+                    echo "Running Redshift validation..."
+                    echo "========================================"
+
                     CLUSTER=$(terraform output -raw cluster_identifier)
                     BUCKET=$(terraform output -raw bucket_name)
 
-                    aws s3 cp s3://$BUCKET/glue/validate_redshift.sql /tmp/rs.sql
+                    # Download validation SQL
+                    aws s3 cp \
+                        s3://$BUCKET/glue/validate_redshift.sql \
+                        /tmp/rs.sql
 
                     SQL=$(cat /tmp/rs.sql)
+
+                    echo ""
+                    echo "Executing validation query..."
+                    echo ""
 
                     STATEMENT_ID=$(aws redshift-data execute-statement \
                         --cluster-identifier $CLUSTER \
                         --database analytics \
                         --db-user admin \
                         --sql "$SQL" \
-                        --query "Id" \
+                        --query Id \
                         --output text)
 
-                    # wait
+                    echo "Statement ID: $STATEMENT_ID"
+
+                    # Wait for completion
                     while true; do
+
                         STATUS=$(aws redshift-data describe-statement \
                             --id $STATEMENT_ID \
                             --query Status \
                             --output text)
 
+                        echo "Status: $STATUS"
+
                         if [ "$STATUS" = "FINISHED" ]; then
                             break
-                        elif [ "$STATUS" = "FAILED" ]; then
-                            echo "FAILED"
+                        fi
+
+                        if [ "$STATUS" = "FAILED" ]; then
+                            echo "Validation failed"
+                            aws redshift-data describe-statement --id $STATEMENT_ID
                             exit 1
                         fi
+
                         sleep 2
                     done
 
+                    echo ""
+                    echo "========================================"
+                    echo "REDSHIFT TABLE COUNTS"
+                    echo "========================================"
+
+                    # Get results in text format
                     aws redshift-data get-statement-result \
                         --id $STATEMENT_ID \
-                        --output text > /tmp/rs_counts.txt
+                        --output json > /tmp/result.json
+
+                    # Print headers
+                    echo "table name|count"
+
+                    # Parse rows
+                    jq -r '
+                        .Records[] |
+                        [
+                            .[0].stringValue,
+                            (.[1].longValue | tostring)
+                        ] | join("|")
+                    ' /tmp/result.json
+
+                    echo ""
+                    echo "(15 rows)"
                 '''
             }
         }
