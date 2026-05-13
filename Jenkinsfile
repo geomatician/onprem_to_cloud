@@ -59,7 +59,7 @@ pipeline {
 
                         DB_HOST=host.docker.internal
                         DB_NAME=pagila
-                        DB_USER=postgres
+                        DB_USER=dms_user
                         DB_PORT=5432
 
                         run_sql () {
