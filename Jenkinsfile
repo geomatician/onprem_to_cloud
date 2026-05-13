@@ -204,25 +204,43 @@ pipeline {
             }
         }
 
-        stage('Validate Redshift Load') {
+        stage('Validate Postgres Counts') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'postgres-password', variable: 'PGPASSWORD')
+                ]) {
+                    sh '''
+                        set -e
+
+                        echo "Running Postgres validation..."
+
+                        psql \
+                        -h host.docker.internal \
+                        -U postgres \
+                        -d pagila \
+                        -p 5432 \
+                        -f scripts/validate_postgres.sql \
+                        -F '|' \
+                        --no-align \
+                        > /tmp/pg_counts.txt
+
+                        cat /tmp/pg_counts.txt
+                    '''
+                }
+            }
+        }
+
+        stage('Validate Redshift Counts') {
             steps {
                 sh '''
                     set -e
 
-                    export AWS_DEFAULT_REGION=us-east-1
-
                     CLUSTER=$(terraform output -raw cluster_identifier)
                     BUCKET=$(terraform output -raw bucket_name)
 
-                    echo "Downloading validation SQL..."
+                    aws s3 cp s3://$BUCKET/glue/validate_redshift.sql /tmp/rs.sql
 
-                    aws s3 cp \
-                        s3://$BUCKET/glue/validate_redshift.sql \
-                        /tmp/validate_redshift.sql
-
-                    SQL=$(cat /tmp/validate_redshift.sql)
-
-                    echo "Executing validation query..."
+                    SQL=$(cat /tmp/rs.sql)
 
                     STATEMENT_ID=$(aws redshift-data execute-statement \
                         --cluster-identifier $CLUSTER \
@@ -232,42 +250,38 @@ pipeline {
                         --query "Id" \
                         --output text)
 
-                    echo "Statement ID: $STATEMENT_ID"
-
-                    # ----------------------------------------
-                    # Wait for completion
-                    # ----------------------------------------
+                    # wait
                     while true; do
-
                         STATUS=$(aws redshift-data describe-statement \
                             --id $STATEMENT_ID \
-                            --query "Status" \
+                            --query Status \
                             --output text)
 
                         if [ "$STATUS" = "FINISHED" ]; then
-                            echo "Validation completed."
                             break
-
                         elif [ "$STATUS" = "FAILED" ]; then
-                            echo "Validation FAILED."
-
-                            aws redshift-data describe-statement \
-                                --id $STATEMENT_ID
-
+                            echo "FAILED"
                             exit 1
-
-                        else
-                            echo "Status: $STATUS ... waiting"
-                            sleep 2
                         fi
+                        sleep 2
                     done
 
-                    echo "========================================"
-                    echo "VALIDATION RESULTS"
-                    echo "========================================"
-
                     aws redshift-data get-statement-result \
-                        --id $STATEMENT_ID
+                        --id $STATEMENT_ID \
+                        --output text > /tmp/rs_counts.txt
+                '''
+            }
+        }
+        stage('Compare Source vs Target') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "Comparing datasets..."
+
+                    python3 $WORKSPACE/scripts/compare_counts.py \
+                        /tmp/pg_counts.txt \
+                        /tmp/rs_counts.txt
                 '''
             }
         }
