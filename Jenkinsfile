@@ -23,6 +23,28 @@ pipeline {
             }
         }
 
+        stage('Test Local PostgreSQL') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'postgres-password', variable: 'PGPASSWORD')
+                ]) {
+                    sh '''
+                        set -e
+
+                        export AWS_DEFAULT_REGION=us-east-1
+
+                        echo "Testing PostgreSQL connectivity..."
+
+                        chmod +x scripts/test_postgres.sh
+
+                        ./scripts/test_postgres.sh
+
+                        echo "PostgreSQL connection successful."
+                    '''
+                }
+            }
+        }
+
         // =====================================================
         // TERRAFORM
         // =====================================================
@@ -68,7 +90,7 @@ pipeline {
             }
         }
 
-        stage('Upload Schema + Glue Script') {
+        stage('Upload Scripts to S3') {
             steps {
                 sh '''
                     set -e
@@ -80,6 +102,9 @@ pipeline {
 
                     aws s3 cp $WORKSPACE/modules/glue/load_to_redshift.py \
                         s3://$BUCKET/glue/load_to_redshift.py
+
+                    aws s3 cp $WORKSPACE/modules/glue/validate_redshift.sql \
+                        s3://$BUCKET/glue/validate_redshift.sql
                 '''
             }
         }
@@ -178,6 +203,76 @@ pipeline {
                 }
             }
         }
+
+        stage('Validate Redshift Load') {
+            steps {
+                sh '''
+                    set -e
+
+                    export AWS_DEFAULT_REGION=us-east-1
+
+                    CLUSTER=$(terraform output -raw cluster_identifier)
+                    BUCKET=$(terraform output -raw bucket_name)
+
+                    echo "Downloading validation SQL..."
+
+                    aws s3 cp \
+                        s3://$BUCKET/glue/validate_redshift.sql \
+                        /tmp/validate_redshift.sql
+
+                    SQL=$(cat /tmp/validate_redshift.sql)
+
+                    echo "Executing validation query..."
+
+                    STATEMENT_ID=$(aws redshift-data execute-statement \
+                        --cluster-identifier $CLUSTER \
+                        --database analytics \
+                        --db-user admin \
+                        --sql "$SQL" \
+                        --query "Id" \
+                        --output text)
+
+                    echo "Statement ID: $STATEMENT_ID"
+
+                    # ----------------------------------------
+                    # Wait for completion
+                    # ----------------------------------------
+                    while true; do
+
+                        STATUS=$(aws redshift-data describe-statement \
+                            --id $STATEMENT_ID \
+                            --query "Status" \
+                            --output text)
+
+                        if [ "$STATUS" = "FINISHED" ]; then
+                            echo "Validation completed."
+                            break
+
+                        elif [ "$STATUS" = "FAILED" ]; then
+                            echo "Validation FAILED."
+
+                            aws redshift-data describe-statement \
+                                --id $STATEMENT_ID
+
+                            exit 1
+
+                        else
+                            echo "Status: $STATUS ... waiting"
+                            sleep 2
+                        fi
+                    done
+
+                    echo "========================================"
+                    echo "VALIDATION RESULTS"
+                    echo "========================================"
+
+                    aws redshift-data get-statement-result \
+                        --id $STATEMENT_ID
+                '''
+            }
+        }
+
+
     }
 
     post {

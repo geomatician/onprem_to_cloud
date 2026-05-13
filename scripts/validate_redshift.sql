@@ -1,30 +1,74 @@
-SELECT 'actor' AS table_name, COUNT(*) FROM actor
+SELECT 'actor' AS "table name", COUNT(*) AS "count"
+FROM pagila_staging.actor
+
 UNION ALL
-SELECT 'address', COUNT(*) FROM address
+
+SELECT 'address', COUNT(*)
+FROM pagila_staging.address
+
 UNION ALL
-SELECT 'category', COUNT(*) FROM category
+
+SELECT 'category', COUNT(*)
+FROM pagila_staging.category
+
 UNION ALL
-SELECT 'city', COUNT(*) FROM city
+
+SELECT 'city', COUNT(*)
+FROM pagila_staging.city
+
 UNION ALL
-SELECT 'country', COUNT(*) FROM country
+
+SELECT 'country', COUNT(*)
+FROM pagila_staging.country
+
 UNION ALL
-SELECT 'customer', COUNT(*) FROM customer
+
+SELECT 'customer', COUNT(*)
+FROM pagila_staging.customer
+
 UNION ALL
-SELECT 'film', COUNT(*) FROM film
+
+SELECT 'film', COUNT(*)
+FROM pagila_staging.film
+
 UNION ALL
-SELECT 'film_actor', COUNT(*) FROM film_actor
+
+SELECT 'film_actor', COUNT(*)
+FROM pagila_staging.film_actor
+
 UNION ALL
-SELECT 'film_category', COUNT(*) FROM film_category
+
+SELECT 'film_category', COUNT(*)
+FROM pagila_staging.film_category
+
 UNION ALL
-SELECT 'inventory', COUNT(*) FROM inventory
+
+SELECT 'inventory', COUNT(*)
+FROM pagila_staging.inventory
+
 UNION ALL
-SELECT 'language', COUNT(*) FROM language
+
+SELECT 'language', COUNT(*)
+FROM pagila_staging.language
+
 UNION ALL
-SELECT 'payment', COUNT(*) FROM payment
+
+SELECT 'payment', COUNT(*)
+FROM pagila_staging.payment
+
 UNION ALL
-SELECT 'rental', COUNT(*) FROM rental
+
+SELECT 'rental', COUNT(*)
+FROM pagila_staging.rental
+
 UNION ALL
-SELECT 'staff', COUNT(*) FROM staff
+
+SELECT 'staff', COUNT(*)
+FROM pagila_staging.staff
+
 UNION ALL
-SELECT 'store', COUNT(*) FROM store
-ORDER BY table_name;
+
+SELECT 'store', COUNT(*)
+FROM pagila_staging.store
+
+ORDER BY "table name";
