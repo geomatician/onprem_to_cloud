@@ -4,12 +4,6 @@ set -e
 
 BUCKET=$(terraform output -raw bucket_name)
 
-echo "Uploading schema..."
-
-aws s3 cp \
-  exports/schema/schema.sql \
-  s3://$BUCKET/schema/schema.sql
-
 echo "Uploading CSV files..."
 
 for FILE in exports/data/*.csv

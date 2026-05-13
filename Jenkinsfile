@@ -234,6 +234,34 @@ pipeline {
         // =====================================================
         // UPLOAD S3 FILES
         // =====================================================
+
+        stage('Export PostgreSQL Tables to local CSV') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'postgres-password', variable: 'PGPASSWORD')
+                ]) {
+                    sh '''
+                        set -e
+
+                        echo "========================================"
+                        echo "EXPORTING POSTGRES TABLES TO CSV"
+                        echo "========================================"
+
+                        chmod +x scripts/export_tables.sh
+
+                        ./scripts/export_tables.sh
+
+                        echo ""
+                        echo "Export complete"
+
+                        echo ""
+                        echo "Generated CSV files:"
+                        ls -lh exports/
+                    '''
+                }
+            }
+        }
+
         stage('Upload CSV Files to S3') {
             steps {
                 sh '''
@@ -266,7 +294,7 @@ pipeline {
         // =====================================================
         // REDSHIFT DATA API - SCHEMA EXECUTION
         // =====================================================
-        stage('Run Schema via Redshift Data API') {
+        stage('Create Schema via Redshift Data API') {
             steps {
                 sh '''
                     set -e
@@ -326,68 +354,6 @@ pipeline {
                 '''
             }
         }
-
-        // =====================================================
-        // GLUE LOAD JOB
-        // =====================================================
-        // stage('Run Glue Load to Redshift (and wait)') {
-        //     steps {
-        //         withCredentials([
-        //             string(credentialsId: 'redshift-password', variable: 'RS_PASS')
-        //         ]) {
-        //             sh '''
-        //                 set -e
-
-        //                 BUCKET=$(terraform output -raw bucket_name)
-
-        //                 RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
-        //                 REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
-
-        //                 echo "Starting Glue job..."
-
-        //                 ARGS=$(printf '{\"--REDSHIFT_HOST\":\"%s\",\"--REDSHIFT_PASSWORD\":\"%s\",\"--S3_BUCKET\":\"%s\"}' \
-        //                     "$REDSHIFT_HOST" \
-        //                     "$RS_PASS" \
-        //                     "$BUCKET")
-
-        //                 RUN_ID=$(aws glue start-job-run \
-        //                     --job-name s3-to-redshift-$ENV \
-        //                     --arguments "$ARGS" \
-        //                     --query 'JobRunId' \
-        //                     --output text)
-
-        //                 echo "Glue JobRunId: $RUN_ID"
-
-        //                 echo "Waiting for Glue job to complete..."
-
-        //                 while true; do
-        //                     STATUS=$(aws glue get-job-run \
-        //                         --job-name s3-to-redshift-$ENV \
-        //                         --run-id $RUN_ID \
-        //                         --query 'JobRun.JobRunState' \
-        //                         --output text)
-
-        //                     echo "Status: $STATUS"
-
-        //                     if [ "$STATUS" = "SUCCEEDED" ]; then
-        //                         echo "Glue job succeeded"
-        //                         break
-        //                     fi
-
-        //                     if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "ERROR" ] || [ "$STATUS" = "TIMEOUT" ]; then
-        //                         echo "Glue job failed"
-        //                         aws glue get-job-run \
-        //                             --job-name s3-to-redshift-$ENV \
-        //                             --run-id $RUN_ID
-        //                         exit 1
-        //                     fi
-
-        //                     sleep 10
-        //                 done
-        //             '''
-        //         }
-        //     }
-        // }
 
         stage('Load Data via Redshift COPY (S3 → Redshift)') {
             steps {
