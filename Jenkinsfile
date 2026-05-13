@@ -434,10 +434,10 @@ pipeline {
                     run_copy customer
                     # run_copy film
                     # run_copy film_actor
-                    # run_copy film_category
-                    # run_copy inventory
-                    # run_copy language
-                    # run_copy payment
+                    run_copy film_category
+                    run_copy inventory
+                    run_copy language
+                    run_copy payment
                     # run_copy rental
                     # run_copy staff
                     # run_copy store
