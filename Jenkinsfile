@@ -548,24 +548,22 @@ pipeline {
                         --id $STATEMENT_ID \
                         --output json > /tmp/result.json
 
-                    # Convert JSON results into psql-style output
-                    python3 - <<EOF > /tmp/rs_counts.txt
-        import json
+# Convert JSON results into psql-style output
+python3 - <<'EOF' > /tmp/rs_counts.txt
+import json
 
-        with open('/tmp/result.json') as f:
-            data = json.load(f)
+with open('/tmp/result.json') as f:
+    data = json.load(f)
 
-        print("table name|count")
+print("table name|count")
 
-        for row in data["Records"]:
-            table = row[0]["stringValue"]
-            count = row[1]["longValue"]
+for row in data["Records"]:
+    table = row[0]["stringValue"]
+    count = row[1]["longValue"]
+    print(f"{table}|{count}")
 
-            print(f"{table}|{count}")
-
-        print("\\n(15 rows)")
-        EOF
-
+print("\\n(15 rows)")
+EOF
                     # Print formatted output
                     cat /tmp/rs_counts.txt
                 '''
