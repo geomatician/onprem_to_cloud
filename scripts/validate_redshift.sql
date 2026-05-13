@@ -1,4 +1,4 @@
-SELECT 'actor' AS "table name", COUNT(*) AS "count"
+SELECT 'actor' AS table_name, COUNT(*) AS count
 FROM pagila_staging.actor
 
 UNION ALL
@@ -71,4 +71,4 @@ UNION ALL
 SELECT 'store', COUNT(*)
 FROM pagila_staging.store
 
-ORDER BY "table name";
+ORDER BY table_name;

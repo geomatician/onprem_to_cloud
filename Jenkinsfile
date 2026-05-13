@@ -23,7 +23,7 @@ pipeline {
             }
         }
 
-        stage('Test Local PostgreSQL') {
+        stage('Test Local PostgreSQL Connection') {
             steps {
                 withCredentials([
                     string(credentialsId: 'postgres-password', variable: 'PGPASSWORD')
@@ -40,6 +40,160 @@ pipeline {
                         ./scripts/test_postgres.sh
 
                         echo "PostgreSQL connection successful."
+                    '''
+                }
+            }
+        }
+
+        stage('Data Integrity Suite (Postgres Source)') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'postgres-password', variable: 'PGPASSWORD')
+                ]) {
+                    sh '''
+                        set -e
+
+                        echo "========================================"
+                        echo "POSTGRES SOURCE DATA INTEGRITY CHECKS"
+                        echo "========================================"
+
+                        DB_HOST=host.docker.internal
+                        DB_NAME=pagila
+                        DB_USER=postgres
+                        DB_PORT=5432
+
+                        run_sql () {
+                            NAME=$1
+                            SQL=$2
+
+                            echo ""
+                            echo "----------------------------------------"
+                            echo "CHECK: $NAME"
+                            echo "----------------------------------------"
+
+                            psql \
+                                -h $DB_HOST \
+                                -U $DB_USER \
+                                -d $DB_NAME \
+                                -p $DB_PORT \
+                                -v ON_ERROR_STOP=1 \
+                                -c "$SQL"
+                        }
+
+                        # =====================================================
+                        # 1. ROW COUNT CHECKS (ALL TABLES)
+                        # =====================================================
+
+                        run_sql "actor_count" "SELECT 'actor' AS table_name, COUNT(*) FROM public.actor;"
+                        run_sql "address_count" "SELECT 'address', COUNT(*) FROM public.address;"
+                        run_sql "category_count" "SELECT 'category', COUNT(*) FROM public.category;"
+                        run_sql "city_count" "SELECT 'city', COUNT(*) FROM public.city;"
+                        run_sql "country_count" "SELECT 'country', COUNT(*) FROM public.country;"
+                        run_sql "customer_count" "SELECT 'customer', COUNT(*) FROM public.customer;"
+                        run_sql "film_count" "SELECT 'film', COUNT(*) FROM public.film;"
+                        run_sql "film_actor_count" "SELECT 'film_actor', COUNT(*) FROM public.film_actor;"
+                        run_sql "film_category_count" "SELECT 'film_category', COUNT(*) FROM public.film_category;"
+                        run_sql "inventory_count" "SELECT 'inventory', COUNT(*) FROM public.inventory;"
+                        run_sql "language_count" "SELECT 'language', COUNT(*) FROM public.language;"
+                        run_sql "payment_count" "SELECT 'payment', COUNT(*) FROM public.payment;"
+                        run_sql "rental_count" "SELECT 'rental', COUNT(*) FROM public.rental;"
+                        run_sql "staff_count" "SELECT 'staff', COUNT(*) FROM public.staff;"
+                        run_sql "store_count" "SELECT 'store', COUNT(*) FROM public.store;"
+
+                        # =====================================================
+                        # 2. PRIMARY KEY CHECKS
+                        # =====================================================
+
+                        run_sql "film_pk" "
+                            SELECT film_id, COUNT(*)
+                            FROM public.film
+                            GROUP BY film_id
+                            HAVING COUNT(*) > 1;
+                        "
+
+                        run_sql "customer_pk" "
+                            SELECT customer_id, COUNT(*)
+                            FROM public.customer
+                            GROUP BY customer_id
+                            HAVING COUNT(*) > 1;
+                        "
+
+                        run_sql "rental_pk" "
+                            SELECT rental_id, COUNT(*)
+                            FROM public.rental
+                            GROUP BY rental_id
+                            HAVING COUNT(*) > 1;
+                        "
+
+                        run_sql "payment_pk" "
+                            SELECT payment_id, COUNT(*)
+                            FROM public.payment
+                            GROUP BY payment_id
+                            HAVING COUNT(*) > 1;
+                        "
+
+                        # =====================================================
+                        # 3. FOREIGN KEY VALIDATION
+                        # =====================================================
+
+                        run_sql "film_actor_fk" "
+                            SELECT COUNT(*)
+                            FROM public.film_actor fa
+                            LEFT JOIN public.film f
+                            ON fa.film_id = f.film_id
+                            WHERE f.film_id IS NULL;
+                        "
+
+                        run_sql "rental_fk_customer" "
+                            SELECT COUNT(*)
+                            FROM public.rental r
+                            LEFT JOIN public.customer c
+                            ON r.customer_id = c.customer_id
+                            WHERE c.customer_id IS NULL;
+                        "
+
+                        run_sql "payment_fk_rental" "
+                            SELECT COUNT(*)
+                            FROM public.payment p
+                            LEFT JOIN public.rental r
+                            ON p.rental_id = r.rental_id
+                            WHERE r.rental_id IS NULL;
+                        "
+
+                        run_sql "inventory_fk_film" "
+                            SELECT COUNT(*)
+                            FROM public.inventory i
+                            LEFT JOIN public.film f
+                            ON i.film_id = f.film_id
+                            WHERE f.film_id IS NULL;
+                        "
+
+                        # =====================================================
+                        # 4. NULL CHECKS
+                        # =====================================================
+
+                        run_sql "film_nulls" "
+                            SELECT COUNT(*)
+                            FROM public.film
+                            WHERE film_id IS NULL OR title IS NULL;
+                        "
+
+                        run_sql "customer_nulls" "
+                            SELECT COUNT(*)
+                            FROM public.customer
+                            WHERE customer_id IS NULL OR first_name IS NULL;
+                        "
+
+                        run_sql "payment_nulls" "
+                            SELECT COUNT(*)
+                            FROM public.payment
+                            WHERE payment_id IS NULL OR amount IS NULL;
+                        "
+
+                        echo ""
+                        echo "========================================"
+                        echo "✅ POSTGRES INTEGRITY CHECKS PASSED"
+                        echo "========================================"
                     '''
                 }
             }
@@ -176,7 +330,7 @@ pipeline {
         // =====================================================
         // GLUE LOAD JOB
         // =====================================================
-        stage('Run Glue Load to Redshift') {
+        stage('Run Glue Load to Redshift (and wait)') {
             steps {
                 withCredentials([
                     string(credentialsId: 'redshift-password', variable: 'RS_PASS')
@@ -189,16 +343,47 @@ pipeline {
                         RAW_ENDPOINT=$(terraform output -raw redshift_endpoint)
                         REDSHIFT_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
 
-                        echo "Running Glue job with host: $REDSHIFT_HOST"
+                        echo "Starting Glue job..."
 
                         ARGS=$(printf '{\"--REDSHIFT_HOST\":\"%s\",\"--REDSHIFT_PASSWORD\":\"%s\",\"--S3_BUCKET\":\"%s\"}' \
                             "$REDSHIFT_HOST" \
                             "$RS_PASS" \
                             "$BUCKET")
 
-                        aws glue start-job-run \
+                        RUN_ID=$(aws glue start-job-run \
                             --job-name s3-to-redshift-$ENV \
-                            --arguments "$ARGS"
+                            --arguments "$ARGS" \
+                            --query 'JobRunId' \
+                            --output text)
+
+                        echo "Glue JobRunId: $RUN_ID"
+
+                        echo "Waiting for Glue job to complete..."
+
+                        while true; do
+                            STATUS=$(aws glue get-job-run \
+                                --job-name s3-to-redshift-$ENV \
+                                --run-id $RUN_ID \
+                                --query 'JobRun.JobRunState' \
+                                --output text)
+
+                            echo "Status: $STATUS"
+
+                            if [ "$STATUS" = "SUCCEEDED" ]; then
+                                echo "Glue job succeeded"
+                                break
+                            fi
+
+                            if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "ERROR" ] || [ "$STATUS" = "TIMEOUT" ]; then
+                                echo "Glue job failed"
+                                aws glue get-job-run \
+                                    --job-name s3-to-redshift-$ENV \
+                                    --run-id $RUN_ID
+                                exit 1
+                            fi
+
+                            sleep 10
+                        done
                     '''
                 }
             }
@@ -282,6 +467,175 @@ pipeline {
                     python3 $WORKSPACE/scripts/compare_counts.py \
                         /tmp/pg_counts.txt \
                         /tmp/rs_counts.txt
+                '''
+            }
+        }
+
+        stage('Data Integrity Suite (Redshift)') {
+            steps {
+                sh '''
+                    set -e
+
+                    CLUSTER=$(terraform output -raw cluster_identifier)
+
+                    echo "========================================"
+                    echo "STARTING FULL DATA INTEGRITY SUITE"
+                    echo "========================================"
+
+                    run_sql () {
+                        NAME=$1
+                        SQL=$2
+
+                        echo ""
+                        echo "----------------------------------------"
+                        echo "CHECK: $NAME"
+                        echo "----------------------------------------"
+                        echo "$SQL"
+
+                        ID=$(aws redshift-data execute-statement \
+                            --cluster-identifier $CLUSTER \
+                            --database analytics \
+                            --db-user admin \
+                            --sql "$SQL" \
+                            --query Id \
+                            --output text)
+
+                        while true; do
+                            STATUS=$(aws redshift-data describe-statement \
+                                --id $ID \
+                                --query Status \
+                                --output text)
+
+                            echo "$NAME status: $STATUS"
+
+                            if [ "$STATUS" = "FINISHED" ]; then
+                                break
+                            fi
+
+                            if [ "$STATUS" = "FAILED" ]; then
+                                echo " FAILED: $NAME"
+                                aws redshift-data describe-statement --id $ID
+                                exit 1
+                            fi
+
+                            sleep 2
+                        done
+
+                        aws redshift-data get-statement-result --id $ID
+                    }
+
+                    # =====================================================
+                    # 1. ROW COUNT CHECKS (ALL TABLES)
+                    # =====================================================
+                    run_sql "actor_count" "SELECT 'actor' AS table_name, COUNT(*) FROM pagila_staging.actor"
+                    run_sql "address_count" "SELECT 'address', COUNT(*) FROM pagila_staging.address"
+                    run_sql "category_count" "SELECT 'category', COUNT(*) FROM pagila_staging.category"
+                    run_sql "city_count" "SELECT 'city', COUNT(*) FROM pagila_staging.city"
+                    run_sql "country_count" "SELECT 'country', COUNT(*) FROM pagila_staging.country"
+                    run_sql "customer_count" "SELECT 'customer', COUNT(*) FROM pagila_staging.customer"
+                    run_sql "film_count" "SELECT 'film', COUNT(*) FROM pagila_staging.film"
+                    run_sql "film_actor_count" "SELECT 'film_actor', COUNT(*) FROM pagila_staging.film_actor"
+                    run_sql "film_category_count" "SELECT 'film_category', COUNT(*) FROM pagila_staging.film_category"
+                    run_sql "inventory_count" "SELECT 'inventory', COUNT(*) FROM pagila_staging.inventory"
+                    run_sql "language_count" "SELECT 'language', COUNT(*) FROM pagila_staging.language"
+                    run_sql "payment_count" "SELECT 'payment', COUNT(*) FROM pagila_staging.payment"
+                    run_sql "rental_count" "SELECT 'rental', COUNT(*) FROM pagila_staging.rental"
+                    run_sql "staff_count" "SELECT 'staff', COUNT(*) FROM pagila_staging.staff"
+                    run_sql "store_count" "SELECT 'store', COUNT(*) FROM pagila_staging.store"
+
+                    # =====================================================
+                    # 2. PRIMARY KEY VALIDATION (CORE TABLES)
+                    # =====================================================
+                    run_sql "film_pk" "
+                        SELECT film_id, COUNT(*)
+                        FROM pagila_staging.film
+                        GROUP BY film_id
+                        HAVING COUNT(*) > 1
+                    "
+
+                    run_sql "customer_pk" "
+                        SELECT customer_id, COUNT(*)
+                        FROM pagila_staging.customer
+                        GROUP BY customer_id
+                        HAVING COUNT(*) > 1
+                    "
+
+                    run_sql "rental_pk" "
+                        SELECT rental_id, COUNT(*)
+                        FROM pagila_staging.rental
+                        GROUP BY rental_id
+                        HAVING COUNT(*) > 1
+                    "
+
+                    run_sql "payment_pk" "
+                        SELECT payment_id, COUNT(*)
+                        FROM pagila_staging.payment
+                        GROUP BY payment_id
+                        HAVING COUNT(*) > 1
+                    "
+
+                    # =====================================================
+                    # 3. FOREIGN KEY INTEGRITY CHECKS
+                    # =====================================================
+
+                    run_sql "film_actor_fk" "
+                        SELECT COUNT(*)
+                        FROM pagila_staging.film_actor fa
+                        LEFT JOIN pagila_staging.film f
+                        ON fa.film_id = f.film_id
+                        WHERE f.film_id IS NULL
+                    "
+
+                    run_sql "rental_fk_customer" "
+                        SELECT COUNT(*)
+                        FROM pagila_staging.rental r
+                        LEFT JOIN pagila_staging.customer c
+                        ON r.customer_id = c.customer_id
+                        WHERE c.customer_id IS NULL
+                    "
+
+                    run_sql "payment_fk_rental" "
+                        SELECT COUNT(*)
+                        FROM pagila_staging.payment p
+                        LEFT JOIN pagila_staging.rental r
+                        ON p.rental_id = r.rental_id
+                        WHERE r.rental_id IS NULL
+                    "
+
+                    run_sql "inventory_fk_film" "
+                        SELECT COUNT(*)
+                        FROM pagila_staging.inventory i
+                        LEFT JOIN pagila_staging.film f
+                        ON i.film_id = f.film_id
+                        WHERE f.film_id IS NULL
+                    "
+
+                    # =====================================================
+                    # 4. NULL CHECKS (CRITICAL COLUMNS)
+                    # =====================================================
+
+                    run_sql "film_nulls" "
+                        SELECT COUNT(*)
+                        FROM pagila_staging.film
+                        WHERE film_id IS NULL OR title IS NULL
+                    "
+
+                    run_sql "customer_nulls" "
+                        SELECT COUNT(*)
+                        FROM pagila_staging.customer
+                        WHERE customer_id IS NULL OR first_name IS NULL
+                    "
+
+                    run_sql "payment_nulls" "
+                        SELECT COUNT(*)
+                        FROM pagila_staging.payment
+                        WHERE payment_id IS NULL OR amount IS NULL
+                    "
+
+                    echo ""
+                    echo "========================================"
+                    echo "ALL DATA INTEGRITY CHECKS PASSED"
+                    echo "========================================"
                 '''
             }
         }
