@@ -425,21 +425,36 @@ pipeline {
 
                     run_copy_film () {
 
-                        TABLE=film
-
                         echo ""
                         echo "----------------------------------------"
-                        echo "Loading table: film (SPECIAL HANDLING)"
+                        echo "Loading table: film (FULL SCHEMA COPY)"
                         echo "----------------------------------------"
 
                         SQL="
                         TRUNCATE TABLE pagila_staging.film;
 
-                        COPY pagila_staging.film (film_id)
+                        COPY pagila_staging.film (
+                            film_id,
+                            title,
+                            description,
+                            release_year,
+                            language_id,
+                            original_language_id,
+                            rental_duration,
+                            rental_rate,
+                            length,
+                            replacement_cost,
+                            rating,
+                            last_update,
+                            special_features
+                        )
                         FROM 's3://$BUCKET/raw/film.csv'
                         IAM_ROLE '$IAM_ROLE'
                         CSV
-                        IGNOREHEADER 1;
+                        IGNOREHEADER 1
+                        EMPTYASNULL
+                        BLANKSASNULL
+                        TIMEFORMAT 'auto';
                         "
 
                         echo "$SQL"
