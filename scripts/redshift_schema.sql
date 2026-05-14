@@ -89,8 +89,7 @@ CREATE TABLE IF NOT EXISTS pagila_staging.store (
 DROP TABLE IF EXISTS pagila_staging.film;
 CREATE TABLE IF NOT EXISTS pagila_staging.film (
     film_id INTEGER,
-    title VARCHAR(255),
-    release_year INTEGER
+    title VARCHAR(500)
 );
 
 DROP TABLE IF EXISTS pagila_staging.film_actor;
