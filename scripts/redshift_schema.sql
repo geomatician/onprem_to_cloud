@@ -90,7 +90,6 @@ DROP TABLE IF EXISTS pagila_staging.film;
 CREATE TABLE IF NOT EXISTS pagila_staging.film (
     film_id INTEGER,
     title VARCHAR(255),
-    description VARCHAR(1000),
     release_year INTEGER,
     language_id INTEGER,
     rental_duration INTEGER,
