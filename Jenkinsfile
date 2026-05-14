@@ -423,10 +423,65 @@ pipeline {
                         echo "✔ Completed: $TABLE"
                     }
 
+                    run_copy_film () {
+
+                        TABLE=film
+
+                        echo ""
+                        echo "----------------------------------------"
+                        echo "Loading table: film (SPECIAL HANDLING)"
+                        echo "----------------------------------------"
+
+                        SQL="
+                        TRUNCATE TABLE pagila_staging.film;
+
+                        COPY pagila_staging.film (film_id)
+                        FROM 's3://$BUCKET/raw/film.csv'
+                        IAM_ROLE '$IAM_ROLE'
+                        CSV
+                        IGNOREHEADER 1;
+                        "
+
+                        echo "$SQL"
+
+                        STATEMENT_ID=$(aws redshift-data execute-statement \
+                            --cluster-identifier $CLUSTER \
+                            --database analytics \
+                            --db-user admin \
+                            --sql "$SQL" \
+                            --query Id \
+                            --output text)
+
+                        echo "Statement ID: $STATEMENT_ID"
+
+                        while true; do
+                            STATUS=$(aws redshift-data describe-statement \
+                                --id $STATEMENT_ID \
+                                --query Status \
+                                --output text)
+
+                            echo "film status: $STATUS"
+
+                            if [ "$STATUS" = "FINISHED" ]; then
+                                break
+                            fi
+
+                            if [ "$STATUS" = "FAILED" ]; then
+                                echo "❌ COPY FAILED for film"
+                                aws redshift-data describe-statement --id $STATEMENT_ID
+                                exit 1
+                            fi
+
+                            sleep 3
+                        done
+
+                        echo "✔ Completed: film"
+                    }
+
                     # =====================================================
                     # RUN ALL TABLES
                     # =====================================================
-                    run_copy film
+                    run_copy_film
                     run_copy actor
                     run_copy address
                     run_copy category
