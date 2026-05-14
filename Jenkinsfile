@@ -520,159 +520,6 @@ pipeline {
             }
         }
 
-        stage('Transform Staging → DWH (Fact & Dimension Tables)') {
-            steps {
-                sh '''
-                    set -e
-
-                    CLUSTER=$(terraform output -raw cluster_identifier)
-
-                    echo "========================================"
-                    echo "BUILDING FACT & DIMENSION LAYER (pagila_dwh)"
-                    echo "========================================"
-
-                    run_sql () {
-                        NAME=$1
-                        SQL=$2
-
-                        echo ""
-                        echo "----------------------------------------"
-                        echo "RUNNING: $NAME"
-                        echo "----------------------------------------"
-
-                        STATEMENT_ID=$(aws redshift-data execute-statement \
-                            --cluster-identifier $CLUSTER \
-                            --database analytics \
-                            --db-user admin \
-                            --sql "$SQL" \
-                            --query Id \
-                            --output text)
-
-                        echo "Statement ID: $STATEMENT_ID"
-
-                        while true; do
-                            STATUS=$(aws redshift-data describe-statement \
-                                --id $STATEMENT_ID \
-                                --query Status \
-                                --output text)
-
-                            echo "$NAME status: $STATUS"
-
-                            if [ "$STATUS" = "FINISHED" ]; then
-                                break
-                            fi
-
-                            if [ "$STATUS" = "FAILED" ]; then
-                                echo "❌ FAILED: $NAME"
-                                aws redshift-data describe-statement --id $STATEMENT_ID
-                                exit 1
-                            fi
-
-                            sleep 2
-                        done
-
-                        echo "✔ Completed: $NAME"
-                    }
-
-                    # =====================================================
-                    # CREATE DWH SCHEMA
-                    # =====================================================
-                    run_sql "create_schema" "
-                        CREATE SCHEMA IF NOT EXISTS pagila_dwh;
-                    "
-
-                    # =====================================================
-                    # DIMENSIONS
-                    # =====================================================
-
-                    run_sql "dim_customer" "
-                        DROP TABLE IF EXISTS pagila_dwh.dim_customer;
-                        CREATE TABLE pagila_dwh.dim_customer AS
-                        SELECT
-                            customer_id,
-                            first_name,
-                            last_name,
-                            email,
-                            active,
-                            create_date
-                        FROM pagila_staging.customer;
-                    "
-
-                    run_sql "dim_staff" "
-                        DROP TABLE IF EXISTS pagila_dwh.dim_staff;
-                        CREATE TABLE pagila_dwh.dim_staff AS
-                        SELECT
-                            staff_id,
-                            first_name,
-                            last_name,
-                            store_id,
-                            active,
-                            username
-                        FROM pagila_staging.staff;
-                    "
-
-                    run_sql "dim_store" "
-                        DROP TABLE IF EXISTS pagila_dwh.dim_store;
-                        CREATE TABLE pagila_dwh.dim_store AS
-                        SELECT
-                            store_id,
-                            manager_staff_id,
-                            address_id
-                        FROM pagila_staging.store;
-                    "
-
-                    run_sql "dim_date" "
-                        DROP TABLE IF EXISTS pagila_dwh.dim_date;
-                        CREATE TABLE pagila_dwh.dim_date AS
-                        SELECT DISTINCT
-                            CAST(rental_date AS DATE) AS date_value
-                        FROM pagila_staging.rental;
-                    "
-
-                    # =====================================================
-                    # FACT TABLES
-                    # =====================================================
-
-                    run_sql "fact_rental" "
-                        DROP TABLE IF EXISTS pagila_dwh.fact_rental;
-
-                        CREATE TABLE pagila_dwh.fact_rental AS
-                        SELECT
-                            r.rental_id,
-                            r.rental_date,
-                            r.return_date,
-                            r.customer_id,
-                            i.film_id,
-                            i.store_id,
-                            r.staff_id
-                        FROM pagila_staging.rental r
-                        JOIN pagila_staging.inventory i
-                            ON r.inventory_id = i.inventory_id;
-                    "
-
-                    run_sql "fact_payment" "
-                        DROP TABLE IF EXISTS pagila_dwh.fact_payment;
-
-                        CREATE TABLE pagila_dwh.fact_payment AS
-                        SELECT
-                            payment_id,
-                            customer_id,
-                            staff_id,
-                            rental_id,
-                            amount,
-                            payment_date
-                        FROM pagila_staging.payment;
-                    "
-
-                    echo ""
-                    echo "========================================"
-                    echo "DWH TRANSFORMATION COMPLETE"
-                    echo "FACT + DIMENSIONS READY"
-                    echo "========================================"
-                '''
-            }
-        }
-
         stage('Validate Postgres Counts') {
             steps {
                 withCredentials([
@@ -973,6 +820,295 @@ EOF
             }
         }
 
+        stage('Transform Staging → DWH (Fact & Dimension Tables)') {
+            steps {
+                sh '''
+                    set -e
+
+                    CLUSTER=$(terraform output -raw cluster_identifier)
+
+                    echo "========================================"
+                    echo "BUILDING ENTERPRISE DWH LAYER (pagila_dwh)"
+                    echo "========================================"
+
+                    run_sql () {
+                        NAME=$1
+                        SQL=$2
+
+                        echo ""
+                        echo "----------------------------------------"
+                        echo "RUNNING: $NAME"
+                        echo "----------------------------------------"
+
+                        STATEMENT_ID=$(aws redshift-data execute-statement \
+                            --cluster-identifier $CLUSTER \
+                            --database analytics \
+                            --db-user admin \
+                            --sql "$SQL" \
+                            --query Id \
+                            --output text)
+
+                        echo "Statement ID: $STATEMENT_ID"
+
+                        while true; do
+                            STATUS=$(aws redshift-data describe-statement \
+                                --id $STATEMENT_ID \
+                                --query Status \
+                                --output text)
+
+                            echo "$NAME status: $STATUS"
+
+                            if [ "$STATUS" = "FINISHED" ]; then
+                                break
+                            fi
+
+                            if [ "$STATUS" = "FAILED" ]; then
+                                echo "❌ FAILED: $NAME"
+                                aws redshift-data describe-statement --id $STATEMENT_ID
+                                exit 1
+                            fi
+
+                            sleep 2
+                        done
+
+                        echo "✔ Completed: $NAME"
+                    }
+
+                    # =====================================================
+                    # CREATE DWH SCHEMA
+                    # =====================================================
+
+                    run_sql "create_schema" "
+                        CREATE SCHEMA IF NOT EXISTS pagila_dwh;
+                    "
+
+                    # =====================================================
+                    # DIM_DATE
+                    # =====================================================
+
+                    run_sql "dim_date" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_date;
+
+                        CREATE TABLE pagila_dwh.dim_date AS
+                        SELECT DISTINCT
+                            CAST(rental_date AS DATE)                  AS date_key,
+                            EXTRACT(YEAR FROM rental_date)             AS year,
+                            EXTRACT(MONTH FROM rental_date)            AS month,
+                            EXTRACT(DAY FROM rental_date)              AS day,
+                            EXTRACT(DOW FROM rental_date)              AS day_of_week,
+                            TO_CHAR(rental_date, 'Month')              AS month_name,
+                            TO_CHAR(rental_date, 'Day')                AS day_name,
+                            CASE
+                                WHEN EXTRACT(DOW FROM rental_date) IN (0,6)
+                                THEN TRUE
+                                ELSE FALSE
+                            END                                        AS is_weekend
+                        FROM pagila_staging.rental;
+                    "
+
+                    # =====================================================
+                    # DIM_CUSTOMER
+                    # =====================================================
+
+                    run_sql "dim_customer" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_customer;
+
+                        CREATE TABLE pagila_dwh.dim_customer AS
+                        SELECT
+                            c.customer_id,
+                            c.first_name || ' ' || c.last_name AS full_name,
+                            c.email,
+                            c.activebool,
+                            c.create_date,
+
+                            a.address,
+                            a.district,
+                            a.postal_code,
+                            a.phone,
+
+                            ci.city,
+                            co.country,
+
+                            c.store_id
+
+                        FROM pagila_staging.customer c
+
+                        LEFT JOIN pagila_staging.address a
+                            ON c.address_id = a.address_id
+
+                        LEFT JOIN pagila_staging.city ci
+                            ON a.city_id = ci.city_id
+
+                        LEFT JOIN pagila_staging.country co
+                            ON ci.country_id = co.country_id;
+                    "
+
+                    # =====================================================
+                    # DIM_FILM
+                    # =====================================================
+
+                    run_sql "dim_film" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_film;
+
+                        CREATE TABLE pagila_dwh.dim_film AS
+                        SELECT
+                            f.film_id,
+                            f.title,
+                            f.description,
+                            f.release_year,
+                            f.rental_duration,
+                            f.rental_rate,
+                            f.length,
+                            f.replacement_cost,
+                            f.rating,
+
+                            l.name AS language,
+
+                            c.name AS category
+
+                        FROM pagila_staging.film f
+
+                        LEFT JOIN pagila_staging.language l
+                            ON f.language_id = l.language_id
+
+                        LEFT JOIN pagila_staging.film_category fc
+                            ON f.film_id = fc.film_id
+
+                        LEFT JOIN pagila_staging.category c
+                            ON fc.category_id = c.category_id;
+                    "
+
+                    # =====================================================
+                    # DIM_STORE
+                    # =====================================================
+
+                    run_sql "dim_store" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_store;
+
+                        CREATE TABLE pagila_dwh.dim_store AS
+                        SELECT
+                            s.store_id,
+                            s.manager_staff_id,
+
+                            a.address,
+                            a.district,
+                            a.postal_code,
+
+                            ci.city,
+                            co.country
+
+                        FROM pagila_staging.store s
+
+                        LEFT JOIN pagila_staging.address a
+                            ON s.address_id = a.address_id
+
+                        LEFT JOIN pagila_staging.city ci
+                            ON a.city_id = ci.city_id
+
+                        LEFT JOIN pagila_staging.country co
+                            ON ci.country_id = co.country_id;
+                    "
+
+                    # =====================================================
+                    # DIM_STAFF
+                    # =====================================================
+
+                    run_sql "dim_staff" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_staff;
+
+                        CREATE TABLE pagila_dwh.dim_staff AS
+                        SELECT
+                            staff_id,
+                            first_name || ' ' || last_name AS full_name,
+                            email,
+                            active,
+                            username,
+                            store_id
+                        FROM pagila_staging.staff;
+                    "
+
+                    # =====================================================
+                    # DIM_ACTOR
+                    # =====================================================
+
+                    run_sql "dim_actor" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_actor;
+
+                        CREATE TABLE pagila_dwh.dim_actor AS
+                        SELECT
+                            actor_id,
+                            first_name || ' ' || last_name AS actor_name
+                        FROM pagila_staging.actor;
+                    "
+
+                    # =====================================================
+                    # FACT_RENTAL
+                    # =====================================================
+
+                    run_sql "fact_rental" "
+                        DROP TABLE IF EXISTS pagila_dwh.fact_rental;
+
+                        CREATE TABLE pagila_dwh.fact_rental AS
+                        SELECT
+                            r.rental_id,
+
+                            CAST(r.rental_date AS DATE) AS rental_date_key,
+
+                            r.customer_id,
+                            i.film_id,
+                            i.store_id,
+                            r.staff_id,
+
+                            p.payment_id,
+
+                            p.amount,
+
+                            DATEDIFF(day, r.rental_date, r.return_date)
+                                AS rental_duration_days,
+
+                            1 AS rental_count
+
+                        FROM pagila_staging.rental r
+
+                        JOIN pagila_staging.inventory i
+                            ON r.inventory_id = i.inventory_id
+
+                        LEFT JOIN pagila_staging.payment p
+                            ON r.rental_id = p.rental_id;
+                    "
+
+                    # =====================================================
+                    # FACT_PAYMENT
+                    # =====================================================
+
+                    run_sql "fact_payment" "
+                        DROP TABLE IF EXISTS pagila_dwh.fact_payment;
+
+                        CREATE TABLE pagila_dwh.fact_payment AS
+                        SELECT
+                            payment_id,
+
+                            CAST(payment_date AS DATE) AS payment_date_key,
+
+                            customer_id,
+                            staff_id,
+                            rental_id,
+
+                            amount,
+
+                            1 AS payment_count
+
+                        FROM pagila_staging.payment;
+                    "
+
+                    echo ""
+                    echo "========================================"
+                    echo "ENTERPRISE DWH TRANSFORMATION COMPLETE"
+                    echo "FACT + DIMENSION MODEL READY"
+                    echo "========================================"
+                '''
+            }
+        }
 
     }
 
