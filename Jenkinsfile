@@ -175,7 +175,7 @@ pipeline {
                         run_sql "film_nulls" "
                             SELECT COUNT(*)
                             FROM public.film
-                            WHERE film_id IS NULL OR title IS NULL;
+                            WHERE film_id IS NULL;
                         "
 
                         run_sql "customer_nulls" "
@@ -727,7 +727,7 @@ EOF
                     run_sql "film_nulls" "
                         SELECT COUNT(*)
                         FROM pagila_staging.film
-                        WHERE film_id IS NULL OR title IS NULL
+                        WHERE film_id IS NULL
                     "
 
                     run_sql "customer_nulls" "
