@@ -423,24 +423,70 @@ pipeline {
                         echo "✔ Completed: $TABLE"
                     }
 
+                    run_film_copy () {
+
+                        TABLE="film"
+
+                        echo ""
+                        echo "----------------------------------------"
+                        echo "Loading SPECIAL table: film"
+                        echo "----------------------------------------"
+
+                        SQL="
+                        TRUNCATE TABLE pagila_staging.film;
+
+                        COPY pagila_staging.film
+                        FROM 's3://$BUCKET/raw/film'
+                        IAM_ROLE '$IAM_ROLE'
+                        FORMAT AS CSV
+                        DELIMITER '\\t'
+                        EMPTYASNULL
+                        BLANKSASNULL
+                        ACCEPTINVCHARS
+                        TIMEFORMAT 'auto';
+                        "
+
+                        echo "$SQL"
+
+                        STATEMENT_ID=$(aws redshift-data execute-statement \
+                            --cluster-identifier $CLUSTER \
+                            --database analytics \
+                            --db-user admin \
+                            --sql "$SQL" \
+                            --query Id \
+                            --output text)
+
+                        echo "Statement ID: $STATEMENT_ID"
+
+                        while true; do
+                            STATUS=$(aws redshift-data describe-statement \
+                                --id $STATEMENT_ID \
+                                --query Status \
+                                --output text)
+
+                            echo "film status: $STATUS"
+
+                            if [ "$STATUS" = "FINISHED" ]; then
+                                break
+                            fi
+
+                            if [ "$STATUS" = "FAILED" ]; then
+                                echo "❌ COPY FAILED for film"
+                                aws redshift-data describe-statement --id $STATEMENT_ID
+                                exit 1
+                            fi
+
+                            sleep 3
+                        done
+
+                        echo "✔ Completed: film"
+                    }
+
                     # =====================================================
                     # RUN ALL TABLES
                     # =====================================================
-                    run_copy actor
-                    run_copy address
-                    run_copy category
-                    run_copy city
-                    run_copy country
-                    run_copy customer
-                    run_copy film
-                    run_copy film_actor
-                    run_copy film_category
-                    run_copy inventory
-                    run_copy language
-                    run_copy payment
-                    run_copy rental
-                    run_copy staff
-                    run_copy store
+                    
+                    run_film_copy
 
                     echo ""
                     echo "========================================"
