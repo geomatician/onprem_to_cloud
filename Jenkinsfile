@@ -445,8 +445,7 @@ pipeline {
                             length,
                             replacement_cost,
                             rating,
-                            last_update,
-                            special_features
+                            last_update
                         )
                         FROM 's3://$BUCKET/raw/film.csv'
                         IAM_ROLE '$IAM_ROLE'
