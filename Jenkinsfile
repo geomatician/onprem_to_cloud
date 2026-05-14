@@ -379,10 +379,14 @@ pipeline {
                         COPY pagila_staging.$TABLE
                         FROM 's3://$BUCKET/raw/$TABLE'
                         IAM_ROLE '$IAM_ROLE'
-                        CSV
+                        FORMAT AS CSV
                         IGNOREHEADER 1
+                        QUOTE '"'
+                        ESCAPE
+                        TRIMBLANKS
                         EMPTYASNULL
                         BLANKSASNULL
+                        ACCEPTINVCHARS
                         TIMEFORMAT 'auto';
                         "
 
