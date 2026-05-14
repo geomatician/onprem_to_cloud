@@ -93,7 +93,6 @@ CREATE TABLE IF NOT EXISTS pagila_staging.film (
     description VARCHAR(1000),
     release_year INTEGER,
     language_id INTEGER,
-    original_language_id INTEGER,
     rental_duration INTEGER,
     rental_rate NUMERIC(4,2),
     length INTEGER,
