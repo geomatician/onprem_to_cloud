@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS pagila_staging.film (
     length INTEGER,
     replacement_cost NUMERIC(5,2),
     rating VARCHAR(10),
-    last_update TIMESTAMP,
+    last_update TIMESTAMP
 );
 
 DROP TABLE IF EXISTS pagila_staging.film_actor;
