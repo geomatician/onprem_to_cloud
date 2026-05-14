@@ -1,5 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS pagila_staging;
 
+DROP TABLE IF EXISTS pagila_staging.actor;
 CREATE TABLE IF NOT EXISTS pagila_staging.actor (
     actor_id INTEGER,
     first_name VARCHAR(45),
@@ -7,6 +8,7 @@ CREATE TABLE IF NOT EXISTS pagila_staging.actor (
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.address;
 CREATE TABLE IF NOT EXISTS pagila_staging.address (
     address_id INTEGER,
     address VARCHAR(50),
@@ -18,12 +20,14 @@ CREATE TABLE IF NOT EXISTS pagila_staging.address (
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.category;
 CREATE TABLE IF NOT EXISTS pagila_staging.category (
     category_id INTEGER,
     name VARCHAR(25),
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.city;
 CREATE TABLE IF NOT EXISTS pagila_staging.city (
     city_id INTEGER,
     city VARCHAR(50),
@@ -31,12 +35,14 @@ CREATE TABLE IF NOT EXISTS pagila_staging.city (
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.country;
 CREATE TABLE IF NOT EXISTS pagila_staging.country (
     country_id INTEGER,
     country VARCHAR(50),
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.customer;
 CREATE TABLE IF NOT EXISTS pagila_staging.customer (
     customer_id INTEGER,
     store_id INTEGER,
@@ -50,12 +56,14 @@ CREATE TABLE IF NOT EXISTS pagila_staging.customer (
     active INTEGER
 );
 
+DROP TABLE IF EXISTS pagila_staging.language;
 CREATE TABLE IF NOT EXISTS pagila_staging.language (
     language_id INTEGER,
     name VARCHAR(20),
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.staff;
 CREATE TABLE IF NOT EXISTS pagila_staging.staff (
     staff_id INTEGER,
     first_name VARCHAR(45),
@@ -64,12 +72,13 @@ CREATE TABLE IF NOT EXISTS pagila_staging.staff (
     email VARCHAR(50),
     store_id INTEGER,
     active BOOLEAN,
-    username VARCHAR(16),
+    username VARCHAR(25),
     password VARCHAR(40),
     last_update TIMESTAMP,
     picture VARCHAR(255)
 );
 
+DROP TABLE IF EXISTS pagila_staging.store;
 CREATE TABLE IF NOT EXISTS pagila_staging.store (
     store_id INTEGER,
     manager_staff_id INTEGER,
@@ -77,10 +86,11 @@ CREATE TABLE IF NOT EXISTS pagila_staging.store (
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.film;
 CREATE TABLE IF NOT EXISTS pagila_staging.film (
     film_id INTEGER,
     title VARCHAR(255),
-    description VARCHAR(1000),
+    description VARCHAR(5000),
     release_year INTEGER,
     language_id INTEGER,
     original_language_id INTEGER,
@@ -89,22 +99,24 @@ CREATE TABLE IF NOT EXISTS pagila_staging.film (
     length INTEGER,
     replacement_cost NUMERIC(5,2),
     rating VARCHAR(10),
-    last_update TIMESTAMP,
-    special_features VARCHAR(255)
+    last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.film_actor;
 CREATE TABLE IF NOT EXISTS pagila_staging.film_actor (
     actor_id INTEGER,
     film_id INTEGER,
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.film_category;
 CREATE TABLE IF NOT EXISTS pagila_staging.film_category (
     film_id INTEGER,
     category_id INTEGER,
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.inventory;
 CREATE TABLE IF NOT EXISTS pagila_staging.inventory (
     inventory_id INTEGER,
     film_id INTEGER,
@@ -112,6 +124,7 @@ CREATE TABLE IF NOT EXISTS pagila_staging.inventory (
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.rental;
 CREATE TABLE IF NOT EXISTS pagila_staging.rental (
     rental_id INTEGER,
     rental_date TIMESTAMP,
@@ -122,6 +135,7 @@ CREATE TABLE IF NOT EXISTS pagila_staging.rental (
     last_update TIMESTAMP
 );
 
+DROP TABLE IF EXISTS pagila_staging.payment;
 CREATE TABLE IF NOT EXISTS pagila_staging.payment (
     payment_id INTEGER,
     customer_id INTEGER,

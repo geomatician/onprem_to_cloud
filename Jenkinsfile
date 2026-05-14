@@ -423,28 +423,251 @@ pipeline {
                         echo "✔ Completed: $TABLE"
                     }
 
+                    run_copy_film () {
+
+                        echo ""
+                        echo "----------------------------------------"
+                        echo "Loading table: film (FULL SCHEMA COPY)"
+                        echo "----------------------------------------"
+
+                        SQL="
+                        TRUNCATE TABLE pagila_staging.film;
+
+                        COPY pagila_staging.film (
+                            film_id,
+                            title,
+                            description,
+                            release_year,
+                            language_id,
+                            original_language_id,
+                            rental_duration,
+                            rental_rate,
+                            length,
+                            replacement_cost,
+                            rating,
+                            last_update
+                        )
+                        FROM 's3://$BUCKET/raw/film.csv'
+                        IAM_ROLE '$IAM_ROLE'
+                        CSV
+                        IGNOREHEADER 1
+                        EMPTYASNULL
+                        BLANKSASNULL
+                        TIMEFORMAT 'auto';
+                        "
+
+                        echo "$SQL"
+
+                        STATEMENT_ID=$(aws redshift-data execute-statement \
+                            --cluster-identifier $CLUSTER \
+                            --database analytics \
+                            --db-user admin \
+                            --sql "$SQL" \
+                            --query Id \
+                            --output text)
+
+                        echo "Statement ID: $STATEMENT_ID"
+
+                        while true; do
+                            STATUS=$(aws redshift-data describe-statement \
+                                --id $STATEMENT_ID \
+                                --query Status \
+                                --output text)
+
+                            echo "film status: $STATUS"
+
+                            if [ "$STATUS" = "FINISHED" ]; then
+                                break
+                            fi
+
+                            if [ "$STATUS" = "FAILED" ]; then
+                                echo "❌ COPY FAILED for film"
+                                aws redshift-data describe-statement --id $STATEMENT_ID
+                                exit 1
+                            fi
+
+                            sleep 3
+                        done
+
+                        echo "✔ Completed: film"
+                    }
+
                     # =====================================================
                     # RUN ALL TABLES
                     # =====================================================
+                    run_copy_film
                     run_copy actor
                     run_copy address
                     run_copy category
                     run_copy city
                     run_copy country
                     run_copy customer
-                    # run_copy film
-                    # run_copy film_actor
-                    # run_copy film_category
-                    # run_copy inventory
-                    # run_copy language
-                    # run_copy payment
-                    # run_copy rental
-                    # run_copy staff
-                    # run_copy store
+                    run_copy film_actor
+                    run_copy film_category
+                    run_copy inventory
+                    run_copy language
+                    run_copy payment
+                    run_copy rental
+                    run_copy staff
+                    run_copy store
+
 
                     echo ""
                     echo "========================================"
                     echo "ALL TABLES LOADED SUCCESSFULLY VIA COPY"
+                    echo "========================================"
+                '''
+            }
+        }
+
+        stage('Transform Staging → DWH (Fact & Dimension Tables)') {
+            steps {
+                sh '''
+                    set -e
+
+                    CLUSTER=$(terraform output -raw cluster_identifier)
+
+                    echo "========================================"
+                    echo "BUILDING FACT & DIMENSION LAYER (pagila_dwh)"
+                    echo "========================================"
+
+                    run_sql () {
+                        NAME=$1
+                        SQL=$2
+
+                        echo ""
+                        echo "----------------------------------------"
+                        echo "RUNNING: $NAME"
+                        echo "----------------------------------------"
+
+                        STATEMENT_ID=$(aws redshift-data execute-statement \
+                            --cluster-identifier $CLUSTER \
+                            --database analytics \
+                            --db-user admin \
+                            --sql "$SQL" \
+                            --query Id \
+                            --output text)
+
+                        echo "Statement ID: $STATEMENT_ID"
+
+                        while true; do
+                            STATUS=$(aws redshift-data describe-statement \
+                                --id $STATEMENT_ID \
+                                --query Status \
+                                --output text)
+
+                            echo "$NAME status: $STATUS"
+
+                            if [ "$STATUS" = "FINISHED" ]; then
+                                break
+                            fi
+
+                            if [ "$STATUS" = "FAILED" ]; then
+                                echo "❌ FAILED: $NAME"
+                                aws redshift-data describe-statement --id $STATEMENT_ID
+                                exit 1
+                            fi
+
+                            sleep 2
+                        done
+
+                        echo "✔ Completed: $NAME"
+                    }
+
+                    # =====================================================
+                    # CREATE DWH SCHEMA
+                    # =====================================================
+                    run_sql "create_schema" "
+                        CREATE SCHEMA IF NOT EXISTS pagila_dwh;
+                    "
+
+                    # =====================================================
+                    # DIMENSIONS
+                    # =====================================================
+
+                    run_sql "dim_customer" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_customer;
+                        CREATE TABLE pagila_dwh.dim_customer AS
+                        SELECT
+                            customer_id,
+                            first_name,
+                            last_name,
+                            email,
+                            active,
+                            create_date
+                        FROM pagila_staging.customer;
+                    "
+
+                    run_sql "dim_staff" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_staff;
+                        CREATE TABLE pagila_dwh.dim_staff AS
+                        SELECT
+                            staff_id,
+                            first_name,
+                            last_name,
+                            store_id,
+                            active,
+                            username
+                        FROM pagila_staging.staff;
+                    "
+
+                    run_sql "dim_store" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_store;
+                        CREATE TABLE pagila_dwh.dim_store AS
+                        SELECT
+                            store_id,
+                            manager_staff_id,
+                            address_id
+                        FROM pagila_staging.store;
+                    "
+
+                    run_sql "dim_date" "
+                        DROP TABLE IF EXISTS pagila_dwh.dim_date;
+                        CREATE TABLE pagila_dwh.dim_date AS
+                        SELECT DISTINCT
+                            CAST(rental_date AS DATE) AS date_value
+                        FROM pagila_staging.rental;
+                    "
+
+                    # =====================================================
+                    # FACT TABLES
+                    # =====================================================
+
+                    run_sql "fact_rental" "
+                        DROP TABLE IF EXISTS pagila_dwh.fact_rental;
+
+                        CREATE TABLE pagila_dwh.fact_rental AS
+                        SELECT
+                            r.rental_id,
+                            r.rental_date,
+                            r.return_date,
+                            r.customer_id,
+                            i.film_id,
+                            i.store_id,
+                            r.staff_id
+                        FROM pagila_staging.rental r
+                        JOIN pagila_staging.inventory i
+                            ON r.inventory_id = i.inventory_id;
+                    "
+
+                    run_sql "fact_payment" "
+                        DROP TABLE IF EXISTS pagila_dwh.fact_payment;
+
+                        CREATE TABLE pagila_dwh.fact_payment AS
+                        SELECT
+                            payment_id,
+                            customer_id,
+                            staff_id,
+                            rental_id,
+                            amount,
+                            payment_date
+                        FROM pagila_staging.payment;
+                    "
+
+                    echo ""
+                    echo "========================================"
+                    echo "DWH TRANSFORMATION COMPLETE"
+                    echo "FACT + DIMENSIONS READY"
                     echo "========================================"
                 '''
             }
