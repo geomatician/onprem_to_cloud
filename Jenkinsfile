@@ -426,6 +426,7 @@ pipeline {
                     # =====================================================
                     # RUN ALL TABLES
                     # =====================================================
+                    run_copy film
                     run_copy actor
                     run_copy address
                     run_copy category
@@ -440,7 +441,7 @@ pipeline {
                     run_copy rental
                     run_copy staff
                     run_copy store
-                    # run_copy film
+
 
                     echo ""
                     echo "========================================"
