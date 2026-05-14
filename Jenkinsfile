@@ -432,7 +432,7 @@ pipeline {
                     run_copy city
                     run_copy country
                     run_copy customer
-                    run_copy film
+                    #run_copy film
                     run_copy film_actor
                     run_copy film_category
                     run_copy inventory
